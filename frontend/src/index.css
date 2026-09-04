@@ -1,0 +1,22 @@
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  @apply bg-bg-main text-text-main font-sans antialiased;
+}
+
+@layer components {
+  .input {
+    @apply w-full bg-bg-main border border-[#2a3441] rounded-[10px]
+           px-3 py-2.5 text-sm text-text-main placeholder:text-[#4a5563]
+           focus:border-brand focus:outline-none transition-colors;
+  }
+}
