@@ -1,0 +1,91 @@
+name: Build & Release
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - name: Windows (x64)
+            runner: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact_glob: "**/*.msi"
+          - name: Linux (x64)
+            runner: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            artifact_glob: "**/*.AppImage"
+
+    runs-on: ${{ matrix.platform.runner }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform.target }}
+
+      - name: Cache Rust build artifacts
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: backend
+          key: ${{ matrix.platform.target }}
+
+      - name: Install Linux system dependencies
+        if: matrix.platform.runner == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libssl-dev \
+            build-essential \
+            curl \
+            wget \
+            file
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: |
+            package-lock.json
+            frontend/package-lock.json
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Build Tauri application
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: backend
+          tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
+          releaseName: ${{ startsWith(github.ref, 'refs/tags/') && format('Waled {0}', github.ref_name) || '' }}
+          releaseBody: |
+            Automated release built by GitHub Actions.
+
+            **Downloads:**
+            - Windows: `.msi` installer
+            - Linux: `.AppImage` (portable, no installation required)
+
+            See the commit history for changes included in this release.
+          releaseDraft: true
+          prerelease: false
+          args: --target ${{ matrix.platform.target }}
