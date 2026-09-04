@@ -1,0 +1,35 @@
+{
+  "name": "waled",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Waled — Control de gastos personales en Venezuela. App de escritorio con conversión automática Bs/USD usando la tasa oficial del BCV.",
+  "author": "badjavii",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/badjavii/waled.git"
+  },
+  "bugs": {
+    "url": "https://github.com/badjavii/waled/issues"
+  },
+  "homepage": "https://github.com/badjavii/waled#readme",
+  "keywords": [
+    "tauri", "rust", "react", "vite", "typescript",
+    "finance", "expenses", "venezuela", "bcv"
+  ],
+  "scripts": {
+    "dev": "cd backend && npx tauri dev",
+    "build": "cd backend && npx tauri build",
+    "frontend": "npm --prefix frontend run dev",
+    "frontend:build": "npm --prefix frontend run build",
+    "frontend:lint": "npm --prefix frontend run lint",
+    "frontend:type-check": "npm --prefix frontend run type-check",
+    "backend:check": "cargo check --manifest-path backend/Cargo.toml",
+    "backend:test": "cargo test --manifest-path backend/Cargo.toml",
+    "backend:fmt": "cargo fmt --manifest-path backend/Cargo.toml",
+    "backend:clippy": "cargo clippy --manifest-path backend/Cargo.toml -- -D warnings"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.4"
+  }
+}
