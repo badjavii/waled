@@ -7,7 +7,7 @@ _Offline-first personal expense tracker built for Venezuela_
 [![Tech](https://img.shields.io/badge/Tech-Rust%20%7C%20Tauri%20v2-orange?labelColor=181825&style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![Frontend](https://img.shields.io/badge/Frontend-React%20%7C%20TypeScript-blue?labelColor=181825&style=for-the-badge&logo=react&logoColor=white)](https://react.dev/)
 [![Styling](https://img.shields.io/badge/Styling-TailwindCSS-06b6d4?labelColor=181825&style=for-the-badge&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
-[![License](https://img.shields.io/github/license/Badjavii/waled?color=a6e3a1&labelColor=181825&style=for-the-badge)](https://github.com/Badjavii/waled)
+[![License](https://img.shields.io/github/license/Badjavii/waled?color=a6e3a1&labelColor=181825&style=for-the-badge)](https://github.com/Badjavii/waled/blob/main/LICENSE)
 
 </div>
 
