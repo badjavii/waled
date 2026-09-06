@@ -47,7 +47,7 @@ impl ExportService {
             exported_at: Utc::now(),
             settings: self.settings.load()?,
             bcv_rate: current_rate,
-            wallets: self.wallets.list()?,
+            wallets: self.wallets.list_all()?,
             accounts: self.accounts.list()?,
             transactions: self.transactions.list()?,
         })

@@ -8,7 +8,6 @@ use crate::domain::errors::{DomainError, DomainResult};
 use crate::domain::models::Wallet;
 use crate::domain::ports::WalletRepository;
 
-/// Coordinates wallet lifecycle operations against a `WalletRepository`.
 pub struct WalletService {
     repository: Arc<dyn WalletRepository>,
 }
@@ -19,30 +18,21 @@ impl WalletService {
         Self { repository }
     }
 
-    pub fn list(&self) -> DomainResult<Vec<Wallet>> {
-        self.repository.list()
+    /// List only active wallets. Used by UI listings and by the transaction
+    /// form's wallet selector.
+    pub fn list_active(&self) -> DomainResult<Vec<Wallet>> {
+        self.repository.list_active()
+    }
+
+    /// List all wallets, including archived. Used by the export service.
+    pub fn list_all(&self) -> DomainResult<Vec<Wallet>> {
+        self.repository.list_all()
     }
 
     pub fn get(&self, id: &str) -> DomainResult<Wallet> {
         self.repository.get(id)
     }
 
-    /// Create a new wallet with a generated identifier.
-    ///
-    /// # Arguments
-    ///
-    /// * `name` - Human-readable name (required).
-    /// * `description` - Optional descriptive text.
-    /// * `is_digital` - Whether the wallet supports payment references.
-    ///
-    /// # Returns
-    ///
-    /// The persisted wallet, including its new id.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`DomainError::Validation`] on empty names or a persistence
-    /// error propagated from the repository.
     pub fn create(
         &self,
         name: String,
@@ -57,6 +47,7 @@ impl WalletService {
             name,
             description,
             is_digital,
+            archived_at: None,
         };
         self.repository.create(&wallet)?;
         Ok(wallet)
@@ -70,7 +61,9 @@ impl WalletService {
         Ok(wallet)
     }
 
-    pub fn delete(&self, id: &str) -> DomainResult<()> {
-        self.repository.delete(id)
+    /// Soft-delete: marks the wallet as archived. The row and any
+    /// transactions referencing it remain in the database.
+    pub fn archive(&self, id: &str) -> DomainResult<()> {
+        self.repository.archive(id)
     }
 }

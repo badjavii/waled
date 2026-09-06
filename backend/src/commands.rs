@@ -28,12 +28,15 @@ pub struct WalletInput {
 
 #[tauri::command]
 pub fn list_wallets(state: State<'_, AppState>) -> CommandResult<Vec<Wallet>> {
-    state.wallets.list().map_err(map_error)
+    state.wallets.list_active().map_err(map_error)
 }
 
 #[tauri::command]
 pub fn create_wallet(state: State<'_, AppState>, input: WalletInput) -> CommandResult<Wallet> {
-    state.wallets.create(input.name, input.description, input.is_digital).map_err(map_error)
+    state
+        .wallets
+        .create(input.name, input.description, input.is_digital)
+        .map_err(map_error)
 }
 
 #[tauri::command]
@@ -43,7 +46,15 @@ pub fn update_wallet(state: State<'_, AppState>, wallet: Wallet) -> CommandResul
 
 #[tauri::command]
 pub fn delete_wallet(state: State<'_, AppState>, id: String) -> CommandResult<()> {
-    state.wallets.delete(&id).map_err(map_error)
+        state.wallets.archive(&id).map_err(map_error)
+}
+
+/// List all wallets including archived ones. Used by read-only views
+/// (transactions history, details modals) to hydrate wallet names for
+/// records that reference archived wallets.
+#[tauri::command]
+pub fn list_all_wallets(state: State<'_, AppState>) -> CommandResult<Vec<Wallet>> {
+    state.wallets.list_all().map_err(map_error)
 }
 
 // ---------- Accounts ----------

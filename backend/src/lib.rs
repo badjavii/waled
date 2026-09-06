@@ -42,6 +42,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::list_wallets,
+            commands::list_all_wallets,
             commands::create_wallet,
             commands::update_wallet,
             commands::delete_wallet,
