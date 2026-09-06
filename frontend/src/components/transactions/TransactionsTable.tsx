@@ -84,17 +84,35 @@ export function TransactionsTable({
               </div>
             </div>
 
+
             <div className="min-w-0">
               <div className="inline-flex items-center gap-1.5 text-[12px] text-text-main">
                 <span
                   className={clsx(
                     "w-1.5 h-1.5 rounded-full",
-                    wallet?.is_digital ? "bg-accent-blue" : "bg-bcv"
+                    wallet?.archived_at
+                      ? "bg-text-muted"
+                      : wallet?.is_digital
+                        ? "bg-accent-blue"
+                        : "bg-bcv"
                   )}
                 />
-                <span className="truncate">
-                  {wallet?.name ?? <span className="text-text-muted">Billetera eliminada</span>}
-                </span>
+                {wallet ? (
+                  <span className="truncate">
+                    <span className={wallet.archived_at ? "text-text-secondary" : ""}>
+                      {wallet.name}
+                    </span>
+                    {wallet.archived_at && (
+                      <span className="text-text-muted text-[10.5px] ml-1">
+                        (Archivada)
+                      </span>
+                    )}
+                  </span>
+                ) : (
+                  <span className="text-text-muted truncate">
+                    Billetera no encontrada
+                  </span>
+                )}
               </div>
               {tx.payment_reference && (
                 <div className="font-mono text-[10.5px] text-text-muted mt-0.5 truncate">

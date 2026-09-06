@@ -56,7 +56,17 @@ export function TransactionDetailsModal({
             {account?.name ?? "Cuenta eliminada"}
           </div>
           <div className="text-[12px] text-text-muted mt-0.5">
-            {account?.account_type ?? "—"} · {wallet?.name ?? "Billetera eliminada"}
+            {account?.account_type ?? "—"} ·{" "}
+            {wallet ? (
+              <>
+                {wallet.name}
+                {wallet.archived_at && (
+                  <span className="text-text-muted ml-1">(Archivada)</span>
+                )}
+              </>
+            ) : (
+              "Billetera no encontrada"
+            )}
           </div>
         </div>
       </div>

@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { Loader2, Receipt } from "lucide-react";
 import { listTransactions, deleteTransaction } from "@/ipc/transactions";
 import { listAccounts } from "@/ipc/accounts";
-import { listWallets } from "@/ipc/wallets";
+import { listWallets, listAllWallets } from "@/ipc/wallets";
 import { getCurrentBcvRate } from "@/ipc/bcv";
 import type { Transaction } from "@/ipc/types";
 import { useTransactionFilters } from "@/hooks/useTransactionFilters";
@@ -26,7 +26,22 @@ export function TransactionsScreen({ onNavigate }: TransactionsScreenProps) {
 
   const txQuery = useQuery({ queryKey: ["transactions"], queryFn: listTransactions });
   const accountsQuery = useQuery({ queryKey: ["accounts"], queryFn: listAccounts });
-  const walletsQuery = useQuery({ queryKey: ["wallets"], queryFn: listWallets });
+
+  // Active wallets: powers the wallet selector in the create/edit modal.
+  const activeWalletsQuery = useQuery({
+    queryKey: ["wallets"],
+    queryFn: listWallets,
+  });
+
+  // All wallets (active + archived): powers the read-only hydration of
+  // historical transactions in the table and details modal. This ensures
+  // that a transaction paid with an archived wallet still displays its
+  // original name instead of falling back to "wallet not found".
+  const allWalletsQuery = useQuery({
+    queryKey: ["wallets", "all"],
+    queryFn: listAllWallets,
+  });
+
   const bcvQuery = useQuery({ queryKey: ["bcv-rate"], queryFn: getCurrentBcvRate });
 
   const {
@@ -41,7 +56,11 @@ export function TransactionsScreen({ onNavigate }: TransactionsScreenProps) {
     rows,
     accountIndex,
     walletIndex,
-  } = useTransactionFilters(txQuery.data, accountsQuery.data, walletsQuery.data);
+  } = useTransactionFilters(
+    txQuery.data,
+    accountsQuery.data,
+    allWalletsQuery.data, // <-- hydrate index from ALL wallets, not just active
+  );
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Transaction | null>(null);
@@ -61,9 +80,16 @@ export function TransactionsScreen({ onNavigate }: TransactionsScreenProps) {
   });
 
   const anyLoading =
-    txQuery.isLoading || accountsQuery.isLoading || walletsQuery.isLoading;
+    txQuery.isLoading ||
+    accountsQuery.isLoading ||
+    activeWalletsQuery.isLoading ||
+    allWalletsQuery.isLoading;
 
-  const anyError = txQuery.error || accountsQuery.error || walletsQuery.error;
+  const anyError =
+    txQuery.error ||
+    accountsQuery.error ||
+    activeWalletsQuery.error ||
+    allWalletsQuery.error;
 
   if (anyLoading) {
     return (
@@ -83,7 +109,7 @@ export function TransactionsScreen({ onNavigate }: TransactionsScreenProps) {
   }
 
   const hasAccounts = (accountsQuery.data?.length ?? 0) > 0;
-  const hasWallets = (walletsQuery.data?.length ?? 0) > 0;
+  const hasWallets = (activeWalletsQuery.data?.length ?? 0) > 0;
   const canCreate = hasAccounts && hasWallets;
   const hasAnyTransaction = (txQuery.data?.length ?? 0) > 0;
 
@@ -149,7 +175,7 @@ export function TransactionsScreen({ onNavigate }: TransactionsScreenProps) {
         onClose={() => setFormOpen(false)}
         editing={editing}
         accounts={accountsQuery.data ?? []}
-        wallets={walletsQuery.data ?? []}
+        wallets={activeWalletsQuery.data ?? []} // <-- modal uses ONLY active wallets
         currentBcvRate={bcvQuery.data ?? null}
       />
 
