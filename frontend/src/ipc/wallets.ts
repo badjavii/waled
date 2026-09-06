@@ -8,13 +8,20 @@ export interface WalletInput {
   is_digital: boolean;
 }
 
+/** Only active (non-archived) wallets. Used for listings and for the
+ *  wallet selector when creating or editing transactions. */
 export const listWallets = (): Promise<Wallet[]> =>
   invoke("list_wallets");
+
+/** All wallets including archived. Used by read-only views (transactions
+ *  history table, transaction details modal) to correctly display the
+ *  name of a wallet even after it was archived. */
+export const listAllWallets = (): Promise<Wallet[]> =>
+  invoke("list_all_wallets");
 
 export const createWallet = (input: WalletInput): Promise<Wallet> =>
   invoke("create_wallet", { input });
 
-/** The Rust command expects the full `Wallet` including its id. */
 export const updateWallet = (wallet: Wallet): Promise<Wallet> =>
   invoke("update_wallet", { wallet });
 

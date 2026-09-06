@@ -12,6 +12,8 @@ export interface Wallet {
   name: string;
   description: string;
   is_digital: boolean;
+  /** ISO 8601 UTC timestamp when the wallet was archived, or null if active. */
+  archived_at: string | null;
 }
 
 export interface Account {
@@ -29,8 +31,8 @@ export interface Transaction {
   account_id: string;
   wallet_id: string;
   ves_amount: number;
-  payment_date: string;        // "YYYY-MM-DD"
-  created_at: string;           // ISO 8601 UTC
+  payment_date: string;
+  created_at: string;
   description: string;
   payment_reference: string | null;
   bcv_rate_at_payment: number;
@@ -44,8 +46,8 @@ export interface Settings {
 
 export interface BcvRate {
   rate: number;
-  date: string;                 // "YYYY-MM-DD"
-  fetched_at: string;           // ISO 8601 UTC
+  date: string;
+  fetched_at: string;
 }
 
 export interface Reminder {
