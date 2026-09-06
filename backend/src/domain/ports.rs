@@ -10,11 +10,16 @@ use crate::domain::models::{Account, BcvRate, Reminder, Settings, Transaction, W
 
 /// Persistence port for wallets.
 pub trait WalletRepository: Send + Sync {
-    fn list(&self) -> DomainResult<Vec<Wallet>>;
+    /// List only active (non-archived) wallets.
+    fn list_active(&self) -> DomainResult<Vec<Wallet>>;
+    /// List all wallets including archived. Used for exports and for
+    /// resolving wallet references from historical transactions.
+    fn list_all(&self) -> DomainResult<Vec<Wallet>>;
     fn get(&self, id: &str) -> DomainResult<Wallet>;
     fn create(&self, wallet: &Wallet) -> DomainResult<()>;
     fn update(&self, wallet: &Wallet) -> DomainResult<()>;
-    fn delete(&self, id: &str) -> DomainResult<()>;
+    /// Soft-delete: sets `archived_at` to now. The row is preserved.
+    fn archive(&self, id: &str) -> DomainResult<()>;
     fn count(&self) -> DomainResult<i64>;
 }
 

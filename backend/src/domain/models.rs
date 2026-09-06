@@ -52,12 +52,18 @@ impl AccountType {
     }
 }
 
+/// A payment method. Soft-deletable via `archived_at`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Wallet {
     pub id: String,
     pub name: String,
     pub description: String,
     pub is_digital: bool,
+    /// UTC timestamp of when the wallet was archived, or `None` if active.
+    /// Archived wallets are hidden from selectors and listings but kept
+    /// in the database to preserve referential integrity with historical
+    /// transactions.
+    pub archived_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -71,14 +77,6 @@ pub struct Account {
     pub notify: bool,
 }
 
-/// A registered expense with two independent dates and a frozen rate.
-///
-/// - `payment_date`: user-selected accounting date (day the money moved).
-///   Governs the month the expense belongs to.
-/// - `created_at`: immutable audit stamp set by the backend at insert time.
-///   Never edited on update.
-/// - `bcv_rate_at_payment`: the exact rate applied to compute the USD
-///   equivalent for this expense. Frozen at creation, never recomputed.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Transaction {
     pub id: String,
@@ -99,19 +97,13 @@ pub struct Settings {
     pub gas_webhook_url: String,
 }
 
-/// Live snapshot of the BCV rate held in memory. Never persisted —
-/// refreshed at startup and at midnight from DolarApi.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BcvRate {
-    /// Bolívares per 1 USD.
     pub rate: f64,
-    /// Publication date reported by the upstream provider (ISO date).
     pub date: NaiveDate,
-    /// Timestamp of the local fetch that produced this snapshot.
     pub fetched_at: chrono::DateTime<chrono::Utc>,
 }
 
-/// Derived reminder for a periodic account. Not persisted.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Reminder {
     pub account_id: String,
