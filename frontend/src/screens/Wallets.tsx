@@ -117,7 +117,7 @@ export function WalletsScreen() {
         title="Eliminar billetera"
         body={
           confirming
-            ? `¿Seguro que deseas eliminar "${confirming.name}"? No podrás usarla en nuevas transacciones. Si ya tiene transacciones registradas, la operación será rechazada.`
+            ? `¿Seguro que deseas eliminar "${confirming.name}"? Ya no aparecerá al registrar nuevas transacciones, pero se conserva en tu historial y en los reportes.`
             : ""
         }
         confirmLabel="Eliminar"
