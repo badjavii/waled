@@ -11,7 +11,8 @@ CREATE TABLE IF NOT EXISTS wallets (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     description TEXT NOT NULL DEFAULT '',
-    is_digital INTEGER NOT NULL DEFAULT 0
+    is_digital INTEGER NOT NULL DEFAULT 0,
+    archived_at TEXT NULL
 );
 
 CREATE TABLE IF NOT EXISTS accounts (
@@ -47,68 +48,19 @@ CREATE TABLE IF NOT EXISTS settings (
 );
 ";
 
-/// Apply the base schema and any pending column migrations.
+/// Apply the base schema. Safe to call on every startup.
+///
+/// v0.2.0 note: this migration is destructive by design — if you upgrade
+/// from v0.1.x, delete the local `waled.db` file before running the app.
+/// See draft.md §7 for details.
 pub fn run(pool: &SqlitePool) -> DomainResult<()> {
-    {
-        let connection = pool
-            .get()
-            .map_err(|err| DomainError::Persistence(err.to_string()))?;
-        connection
-            .execute_batch(SCHEMA)
-            .map_err(|err| DomainError::Persistence(err.to_string()))?;
-    }
-    migrate_transactions_v2(pool)?;
-    Ok(())
-}
-
-fn migrate_transactions_v2(pool: &SqlitePool) -> DomainResult<()> {
     let connection = pool
         .get()
         .map_err(|err| DomainError::Persistence(err.to_string()))?;
-
-    let mut columns = std::collections::HashSet::new();
-    {
-        let mut stmt = connection
-            .prepare("PRAGMA table_info(transactions)")
-            .map_err(|err| DomainError::Persistence(err.to_string()))?;
-        let mut rows = stmt
-            .query([])
-            .map_err(|err| DomainError::Persistence(err.to_string()))?;
-        while let Some(row) = rows
-            .next()
-            .map_err(|err| DomainError::Persistence(err.to_string()))?
-        {
-            let name: String = row
-                .get(1)
-                .map_err(|err| DomainError::Persistence(err.to_string()))?;
-            columns.insert(name);
-        }
-    }
-
-    let has_v2 = columns.contains("payment_date")
-        && columns.contains("created_at")
-        && columns.contains("bcv_rate_at_payment");
-    let has_legacy_date = columns.contains("transaction_date");
-    let has_legacy_rate = columns.contains("bcv_rate_at_registration");
-
-    if has_v2 && !has_legacy_date && !has_legacy_rate {
-        return Ok(());
-    }
-    if has_v2 && (has_legacy_date || has_legacy_rate) {
-        connection
-            .execute(
-                "UPDATE transactions
-                    SET payment_date        = COALESCE(payment_date, transaction_date),
-                        created_at          = COALESCE(created_at, transaction_date || 'T00:00:00Z'),
-                        bcv_rate_at_payment = COALESCE(bcv_rate_at_payment, bcv_rate_at_registration)
-                    WHERE payment_date IS NULL
-                       OR created_at IS NULL
-                       OR bcv_rate_at_payment IS NULL",
-                params![],
-            )
-            .map_err(|err| DomainError::Persistence(err.to_string()))?;
-    }
-    // Drop the obsolete rates table if a previous version created it.
+    connection
+        .execute_batch(SCHEMA)
+        .map_err(|err| DomainError::Persistence(err.to_string()))?;
+    // Drop the legacy bcv_rates table if it existed in v0.1.x.
     connection
         .execute("DROP TABLE IF EXISTS bcv_rates", params![])
         .map_err(|err| DomainError::Persistence(err.to_string()))?;
