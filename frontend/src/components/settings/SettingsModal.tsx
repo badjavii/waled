@@ -1,10 +1,11 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Download } from "lucide-react";
+import { Download, Loader2, Zap } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { exportDatabaseToFile, getSettings, saveSettings } from "@/ipc/settings";
 import type { Settings } from "@/ipc/types";
+import { pingReminderWebhook } from "@/ipc/reminders";
 
 interface SettingsModalProps {
   open: boolean;
@@ -42,6 +43,20 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
     },
     onError: (error: unknown) => {
       toast.error("No se pudo guardar", { description: String(error) });
+    },
+  });
+
+  const pingMutation = useMutation({
+    mutationFn: (url: string) => pingReminderWebhook(url),
+    onSuccess: () => {
+      toast.success("Conexión exitosa", {
+        description: "El webhook respondió correctamente.",
+      });
+    },
+    onError: (err: unknown) => {
+      toast.error("No se pudo conectar con el webhook", {
+        description: String(err),
+      });
     },
   });
 
@@ -100,17 +115,38 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
             </Field>
 
             <Field
-              label="Webhook de recordatorios"
-              hint="URL del Google Apps Script que envía los correos automáticos."
+              label="Webhook de recordatorios (Google Apps Script)"
+              hint="URL del script que recibirá los correos de recordatorios. Deja en blanco para deshabilitar el envío automático."
             >
-              <input
-                type="url"
-                inputMode="url"
-                value={form.gas_webhook_url}
-                onChange={(e) => setForm({ ...form, gas_webhook_url: e.target.value })}
-                placeholder="https://script.google.com/macros/s/…/exec"
-                className="input font-mono"
-              />
+              <div className="flex gap-2">
+                <input
+                  type="url"
+                  value={form.gas_webhook_url}
+                  onChange={(event) =>
+                    setForm({ ...form, gas_webhook_url: event.target.value })
+                  }
+                  placeholder="https://script.google.com/macros/s/…/exec"
+                  className="input font-mono flex-1"
+                />
+                <button
+                  type="button"
+                  onClick={() => pingMutation.mutate(form.gas_webhook_url)}
+                  disabled={!form.gas_webhook_url.trim() || pingMutation.isPending}
+                  className="flex items-center gap-1.5 bg-[#151c25] border border-border-strong text-text-secondary hover:text-text-main font-semibold text-[12px] px-3 rounded-[10px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
+                  title={
+                    !form.gas_webhook_url.trim()
+                      ? "Guarda una URL para poder probar la conexión"
+                      : "Enviar un ping al webhook para verificar que responde"
+                  }
+                >
+                  {pingMutation.isPending ? (
+                    <Loader2 size={13} className="animate-spin" />
+                  ) : (
+                    <Zap size={13} />
+                  )}
+                  {pingMutation.isPending ? "Probando…" : "Probar"}
+                </button>
+              </div>
             </Field>
 
             <div className="flex items-center justify-between gap-4 bg-bg-main border border-[#2a3441] rounded-[10px] px-4 py-3.5 mt-1">
