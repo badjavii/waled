@@ -48,7 +48,7 @@ impl ExportService {
             settings: self.settings.load()?,
             bcv_rate: current_rate,
             wallets: self.wallets.list_all()?,
-            accounts: self.accounts.list()?,
+            accounts: self.accounts.list_all()?,
             transactions: self.transactions.list()?,
         })
     }

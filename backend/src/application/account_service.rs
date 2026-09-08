@@ -18,20 +18,18 @@ impl AccountService {
         Self { repository }
     }
 
-    pub fn list(&self) -> DomainResult<Vec<Account>> {
-        self.repository.list()
+    pub fn list_active(&self) -> DomainResult<Vec<Account>> {
+        self.repository.list_active()
+    }
+
+    pub fn list_all(&self) -> DomainResult<Vec<Account>> {
+        self.repository.list_all()
     }
 
     pub fn get(&self, id: &str) -> DomainResult<Account> {
         self.repository.get(id)
     }
 
-    /// Create a new account.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`DomainError::Validation`] when the name is empty or when
-    /// `is_periodic` is true but `periodicity_days` is missing or non-positive.
     pub fn create(
         &self,
         name: String,
@@ -53,6 +51,7 @@ impl AccountService {
             is_periodic,
             periodicity_days: if is_periodic { periodicity_days } else { None },
             notify,
+            archived_at: None,
         };
         self.repository.create(&account)?;
         Ok(account)
@@ -64,8 +63,10 @@ impl AccountService {
         Ok(account)
     }
 
-    pub fn delete(&self, id: &str) -> DomainResult<()> {
-        self.repository.delete(id)
+    /// Soft-delete: marks the account as archived. The row and any
+    /// transactions referencing it remain in the database.
+    pub fn archive(&self, id: &str) -> DomainResult<()> {
+        self.repository.archive(id)
     }
 
     fn validate_periodicity(is_periodic: bool, days: Option<i64>) -> DomainResult<()> {

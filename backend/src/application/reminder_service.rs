@@ -37,7 +37,7 @@ impl ReminderService {
             .unwrap_or(today);
 
         let mut reminders = Vec::new();
-        for account in self.accounts.list_periodic()? {
+        for account in self.accounts.list_active_periodic()? {
             let Some(periodicity) = account.periodicity_days else { continue };
             let last = self.transactions.last_by_account(&account.id)?;
             let due_date = match &last {
