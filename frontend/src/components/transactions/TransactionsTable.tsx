@@ -76,14 +76,26 @@ export function TransactionsTable({
               </div>
               <div className="min-w-0">
                 <div className="text-[13.5px] font-semibold truncate">
-                  {account?.name ?? <span className="text-text-muted">Cuenta eliminada</span>}
+                  {account ? (
+                    <>
+                      <span className={account.archived_at ? "text-text-secondary" : ""}>
+                        {account.name}
+                      </span>
+                      {account.archived_at && (
+                        <span className="text-text-muted text-[10.5px] font-normal ml-1">
+                          (Archivada)
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    <span className="text-text-muted">Cuenta no encontrada</span>
+                  )}
                 </div>
                 <div className="text-[11px] text-text-muted truncate">
                   {tx.description || "Sin descripción"}
                 </div>
               </div>
             </div>
-
 
             <div className="min-w-0">
               <div className="inline-flex items-center gap-1.5 text-[12px] text-text-main">

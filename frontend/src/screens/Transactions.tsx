@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Loader2, Receipt } from "lucide-react";
 import { listTransactions, deleteTransaction } from "@/ipc/transactions";
-import { listAccounts } from "@/ipc/accounts";
+import { listAccounts, listAllAccounts } from "@/ipc/accounts";
 import { listWallets, listAllWallets } from "@/ipc/wallets";
 import { getCurrentBcvRate } from "@/ipc/bcv";
 import type { Transaction } from "@/ipc/types";
@@ -25,7 +25,19 @@ export function TransactionsScreen({ onNavigate }: TransactionsScreenProps) {
   const queryClient = useQueryClient();
 
   const txQuery = useQuery({ queryKey: ["transactions"], queryFn: listTransactions });
-  const accountsQuery = useQuery({ queryKey: ["accounts"], queryFn: listAccounts });
+
+  // Active accounts: powers the account selector in the create/edit modal.
+  const activeAccountsQuery = useQuery({
+    queryKey: ["accounts"],
+    queryFn: listAccounts,
+  });
+
+  // All accounts (active + archived): powers the read-only hydration of
+  // historical transactions in the table and details modal.
+  const allAccountsQuery = useQuery({
+    queryKey: ["accounts", "all"],
+    queryFn: listAllAccounts,
+  });
 
   // Active wallets: powers the wallet selector in the create/edit modal.
   const activeWalletsQuery = useQuery({
@@ -33,10 +45,7 @@ export function TransactionsScreen({ onNavigate }: TransactionsScreenProps) {
     queryFn: listWallets,
   });
 
-  // All wallets (active + archived): powers the read-only hydration of
-  // historical transactions in the table and details modal. This ensures
-  // that a transaction paid with an archived wallet still displays its
-  // original name instead of falling back to "wallet not found".
+  // All wallets (active + archived): powers the read-only hydration.
   const allWalletsQuery = useQuery({
     queryKey: ["wallets", "all"],
     queryFn: listAllWallets,
@@ -58,8 +67,8 @@ export function TransactionsScreen({ onNavigate }: TransactionsScreenProps) {
     walletIndex,
   } = useTransactionFilters(
     txQuery.data,
-    accountsQuery.data,
-    allWalletsQuery.data, // <-- hydrate index from ALL wallets, not just active
+    allAccountsQuery.data, // <-- hydrate index from ALL accounts
+    allWalletsQuery.data,
   );
 
   const [formOpen, setFormOpen] = useState(false);
@@ -81,13 +90,15 @@ export function TransactionsScreen({ onNavigate }: TransactionsScreenProps) {
 
   const anyLoading =
     txQuery.isLoading ||
-    accountsQuery.isLoading ||
+    activeAccountsQuery.isLoading ||
+    allAccountsQuery.isLoading ||
     activeWalletsQuery.isLoading ||
     allWalletsQuery.isLoading;
 
   const anyError =
     txQuery.error ||
-    accountsQuery.error ||
+    activeAccountsQuery.error ||
+    allAccountsQuery.error ||
     activeWalletsQuery.error ||
     allWalletsQuery.error;
 
@@ -108,7 +119,7 @@ export function TransactionsScreen({ onNavigate }: TransactionsScreenProps) {
     );
   }
 
-  const hasAccounts = (accountsQuery.data?.length ?? 0) > 0;
+  const hasAccounts = (activeAccountsQuery.data?.length ?? 0) > 0;
   const hasWallets = (activeWalletsQuery.data?.length ?? 0) > 0;
   const canCreate = hasAccounts && hasWallets;
   const hasAnyTransaction = (txQuery.data?.length ?? 0) > 0;
@@ -174,8 +185,8 @@ export function TransactionsScreen({ onNavigate }: TransactionsScreenProps) {
         open={formOpen}
         onClose={() => setFormOpen(false)}
         editing={editing}
-        accounts={accountsQuery.data ?? []}
-        wallets={activeWalletsQuery.data ?? []} // <-- modal uses ONLY active wallets
+        accounts={activeAccountsQuery.data ?? []} // <-- modal uses ONLY active accounts
+        wallets={activeWalletsQuery.data ?? []}
         currentBcvRate={bcvQuery.data ?? null}
       />
 

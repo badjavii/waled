@@ -53,7 +53,20 @@ export function TransactionDetailsModal({
         </div>
         <div className="min-w-0">
           <div className="text-[17px] font-extrabold truncate">
-            {account?.name ?? "Cuenta eliminada"}
+            {account ? (
+              <>
+                <span className={account.archived_at ? "text-text-secondary" : ""}>
+                  {account.name}
+                </span>
+                {account.archived_at && (
+                  <span className="text-text-muted text-[12px] font-normal ml-2">
+                    (Archivada)
+                  </span>
+                )}
+              </>
+            ) : (
+              "Cuenta no encontrada"
+            )}
           </div>
           <div className="text-[12px] text-text-muted mt-0.5">
             {account?.account_type ?? "—"} ·{" "}
