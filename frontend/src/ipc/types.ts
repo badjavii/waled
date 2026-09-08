@@ -24,6 +24,8 @@ export interface Account {
   is_periodic: boolean;
   periodicity_days: number | null;
   notify: boolean;
+  /** ISO 8601 UTC timestamp when the account was archived, or null if active. */
+  archived_at: string | null;
 }
 
 export interface Transaction {
