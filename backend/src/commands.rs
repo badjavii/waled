@@ -226,6 +226,17 @@ pub async fn trigger_reminder_email(state: State<'_, AppState>) -> CommandResult
         .map_err(map_error)
 }
 
+/// Send a lightweight ping to the reminder webhook to verify that the
+/// URL is reachable and that Google Apps Script responds. Does not send
+/// any email; used by the "Probar conexión" button in Settings.
+#[tauri::command]
+pub async fn ping_reminder_webhook(
+    state: State<'_, AppState>,
+    url: Option<String>,
+) -> CommandResult<()> {
+    state.reminders.ping(url).await.map_err(map_error)
+}
+
 // ---------- Export ----------
 
 #[tauri::command]

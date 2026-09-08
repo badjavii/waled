@@ -4,6 +4,7 @@
 //! keeping the domain free of infrastructure details.
 
 use chrono::NaiveDate;
+use serde::{Deserialize, Serialize};
 
 use crate::domain::errors::DomainResult;
 use crate::domain::models::{Account, BcvRate, Reminder, Settings, Transaction, Wallet};
@@ -80,16 +81,18 @@ pub struct ReminderNotificationPayload {
     pub total_ves: f64,
 }
 
-/// Categorises which trigger produced a notification.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+/// Kind of notification being sent to the reminder webhook.
+///
+/// - `Manual`: dispatched from the "Enviar ahora" button in the Reminders screen.
+/// - `Scheduled`: reserved for future automated triggers (see draft.md §3.8).
+/// - `Ping`: connectivity check from the Settings modal. GAS should
+///   receive it and respond 2xx without sending any email.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ReminderNotificationKind {
-    /// Weekly digest of the next 21 days.
-    WeeklyThreeWeekWindow,
-    /// Monthly summary sent on the first of the month.
-    MonthlySummary,
-    /// Manual trigger from the UI.
     Manual,
+    Scheduled,
+    Ping,
 }
 
 /// Outbound port for reminder email delivery.

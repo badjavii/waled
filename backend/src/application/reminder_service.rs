@@ -112,6 +112,43 @@ impl ReminderService {
         Ok(payload)
     }
 
+    /// Send a minimal payload to the reminder webhook to verify connectivity.
+    /// The receiving Google Apps Script should acknowledge with 2xx and
+    /// take no action (no email is expected).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError::Validation`] if the webhook URL is not set,
+    /// or [`DomainError::External`] if the webhook does not respond
+    /// successfully within the notifier's timeout.
+    pub async fn ping(&self, url_override: Option<String>) -> DomainResult<()> {
+        let settings = self.settings.load()?;
+        let url = match url_override {
+            Some(u) if !u.trim().is_empty() => u.trim().to_string(),
+            _ => {
+                let stored = settings.gas_webhook_url.trim();
+                if stored.is_empty() {
+                    return Err(DomainError::Validation(
+                        "gas_webhook_url is not configured".into(),
+                    ));
+                }
+                stored.to_string()
+            }
+        };
+
+        let payload = ReminderNotificationPayload {
+            kind: ReminderNotificationKind::Ping,
+            user_name: settings.user_name.clone(),
+            user_email: settings.user_email.clone(),
+            generated_at: chrono::Utc::now(),
+            reminders: Vec::new(),
+            total_ves: 0.0,
+        };
+
+        self.notifier.send_reminder(&url, &payload).await?;
+        Ok(())
+    }
+
     /// Return the most recent transaction's `payment_date` for the given
     /// account within the current calendar month, or `None` if there is
     /// no transaction this month.

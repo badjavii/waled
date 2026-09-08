@@ -61,6 +61,7 @@ pub fn run() {
             commands::refresh_bcv_rate,
             commands::list_reminders,
             commands::trigger_reminder_email,
+            commands::ping_reminder_webhook,
             commands::export_database,
         ])
         .run(tauri::generate_context!())
