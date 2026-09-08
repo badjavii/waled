@@ -58,9 +58,9 @@ pub struct Wallet {
 
 /// An expense bucket. Soft-deletable via `archived_at`.
 ///
-/// Archived accounts are hidden from selectors and reminders, but remain
-/// in the database to preserve referential integrity and to keep
-/// historical transactions and monthly aggregates accurate.
+/// Periodic accounts use a monthly billing window defined by `start_day`
+/// (default 1) and `due_day` (required). Both are 1-31 and satisfy
+/// `start_day <= due_day` (no cross-month windows in v0.2.0).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Account {
     pub id: String,
@@ -68,9 +68,13 @@ pub struct Account {
     pub description: String,
     pub account_type: AccountType,
     pub is_periodic: bool,
-    pub periodicity_days: Option<i64>,
+    /// Day of the month when the billing window opens. Default 1 if not
+    /// specified by the user. `None` for non-periodic accounts.
+    pub start_day: Option<i64>,
+    /// Day of the month when the payment is due. Required if periodic.
+    /// `None` for non-periodic accounts.
+    pub due_day: Option<i64>,
     pub notify: bool,
-    /// UTC timestamp of when the account was archived, or `None` if active.
     pub archived_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
@@ -101,12 +105,58 @@ pub struct BcvRate {
     pub fetched_at: chrono::DateTime<chrono::Utc>,
 }
 
+/// Kind of upcoming notification for a periodic account.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum NotificationKind {
+    /// Sent on the `start_day` — the billing window opens.
+    Open,
+    /// Sent on the mid-point of the window: `ceil((start + due) / 2)`.
+    Middle,
+    /// Sent one day before `due_day`.
+    DayBefore,
+    /// Only used when `start_day == due_day`: five days before the
+    /// single payment day.
+    FiveDaysBefore,
+}
+
+/// A pre-computed upcoming notification for a periodic account.
+///
+/// `date` is the exact day when the notification would fire.
+/// `crosses_month` is `true` when `date` falls in a different calendar
+/// month than the actual payment cycle (only happens for `DayBefore` or
+/// `FiveDaysBefore` on very early `due_day` values).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NextNotification {
+    pub kind: NotificationKind,
+    pub date: NaiveDate,
+    pub crosses_month: bool,
+}
+
+/// A monthly billing cycle reminder derived from an active periodic account.
+///
+/// `due_date` points to the *next relevant* payment date for this account,
+/// which advances automatically to the following month if the current
+/// month's cycle is either paid or has already passed.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Reminder {
     pub account_id: String,
     pub name: String,
     pub account_type: AccountType,
+    pub start_day: i64,
+    pub due_day: i64,
+    /// The next relevant due date. Advances to next month automatically
+    /// when the current cycle is paid or already elapsed and unpaid.
     pub due_date: NaiveDate,
-    pub periodicity_days: i64,
-    pub ves_amount: f64,
+    /// True if the cycle at `due_date` is paid.
+    pub is_paid: bool,
+    /// True if the account has any transaction in the current calendar month.
+    pub paid_in_current_month: bool,
+    /// `payment_date` of the most recent transaction in the current
+    /// calendar month, or `None` if there is no payment this month.
+    /// Used by the UI to show a "recently paid" section for the last
+    /// N days.
+    pub paid_at: Option<NaiveDate>,
+    /// Next scheduled notification for the cycle at `due_date`.
+    pub next_notification: Option<NextNotification>,
 }
