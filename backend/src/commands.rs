@@ -71,7 +71,15 @@ pub struct AccountInput {
 
 #[tauri::command]
 pub fn list_accounts(state: State<'_, AppState>) -> CommandResult<Vec<Account>> {
-    state.accounts.list().map_err(map_error)
+    state.accounts.list_active().map_err(map_error)
+}
+
+/// List all accounts including archived ones. Used by read-only views
+/// (transactions history, dashboard aggregates) to hydrate account
+/// references even when the account has been archived.
+#[tauri::command]
+pub fn list_all_accounts(state: State<'_, AppState>) -> CommandResult<Vec<Account>> {
+    state.accounts.list_all().map_err(map_error)
 }
 
 #[tauri::command]
@@ -96,7 +104,7 @@ pub fn update_account(state: State<'_, AppState>, account: Account) -> CommandRe
 
 #[tauri::command]
 pub fn delete_account(state: State<'_, AppState>, id: String) -> CommandResult<()> {
-    state.accounts.delete(&id).map_err(map_error)
+    state.accounts.archive(&id).map_err(map_error)
 }
 
 // ---------- Transactions ----------

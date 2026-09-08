@@ -47,6 +47,7 @@ pub fn run() {
             commands::update_wallet,
             commands::delete_wallet,
             commands::list_accounts,
+            commands::list_all_accounts,
             commands::create_account,
             commands::update_account,
             commands::delete_account,
