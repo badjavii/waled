@@ -25,9 +25,9 @@ export function RemindersHeader({ count }: RemindersHeaderProps) {
   return (
     <div className="flex items-start gap-5 mb-5 flex-wrap">
       <p className="text-[12.5px] text-text-muted flex-1 min-w-[280px] leading-relaxed">
-        Cuentas periódicas que vencen en las próximas 3 semanas, en orden
-        cronológico. El envío automático corre en segundo plano; también puedes
-        forzarlo desde aquí.
+        Cuentas periódicas que vencen en los próximos 30 días en orden
+        cronológico. El envío automático corre en segundo plano; también
+        puedes forzarlo desde aquí.
       </p>
 
       <button

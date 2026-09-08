@@ -33,6 +33,7 @@ export function AccountsScreen() {
     mutationFn: (id: string) => deleteAccount(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["reminders"] });
       toast.success("Cuenta eliminada");
       setConfirming(null);
     },
@@ -191,10 +192,12 @@ function AccountCard({ account, onEdit, onDelete }: AccountCardProps) {
       </p>
 
       <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-border-muted">
-        {account.is_periodic && account.periodicity_days ? (
+        {account.is_periodic && account.start_day && account.due_day ? (
           <span className="inline-flex items-center gap-1 text-[10.5px] font-bold text-accent-blue bg-accent-blue/10 px-2 py-1 rounded-full">
             <RotateCw size={10} />
-            Cada {account.periodicity_days} días
+            {account.start_day === account.due_day
+              ? `Día ${account.due_day}`
+              : `Del ${account.start_day} al ${account.due_day}`}
           </span>
         ) : (
           <span className="inline-flex items-center gap-1 text-[10.5px] font-bold text-text-muted bg-bg-row px-2 py-1 rounded-full">

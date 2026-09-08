@@ -122,8 +122,13 @@ export function TransactionModal({
       return createTransaction(payload);
     },
     onSuccess: () => {
+      // Invalidate related queries: any transaction change may affect
+      // the reminders view (a new payment marks a cycle as paid, an edit
+      // may change which month a payment belongs to, a deletion may
+      // un-mark a cycle as paid).
       queryClient.invalidateQueries({ queryKey: ["transactions"] });
-      toast.success(isEditing ? "Transacción actualizada" : "Transacción registrada");
+      queryClient.invalidateQueries({ queryKey: ["reminders"] });
+      toast.success(isEditing ? "Transacción actualizada" : "Transacción creada");
       onClose();
     },
     onError: (error: unknown) => {

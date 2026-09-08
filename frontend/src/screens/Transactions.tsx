@@ -80,6 +80,7 @@ export function TransactionsScreen({ onNavigate }: TransactionsScreenProps) {
     mutationFn: (id: string) => deleteTransaction(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["reminders"] });
       toast.success("Transacción eliminada");
       setConfirming(null);
     },
