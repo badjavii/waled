@@ -47,6 +47,7 @@ function TopRow({ rank, entry, currentBcvRate }: TopRowProps) {
   const { Icon } = meta;
   const usd =
     currentBcvRate && currentBcvRate > 0 ? entry.totalVes / currentBcvRate : null;
+  const isArchived = entry.account.archived_at !== null;
 
   return (
     <div className="flex items-center gap-3.5 px-3.5 py-2.5 bg-bg-row border border-border-base rounded-xl">
@@ -56,13 +57,22 @@ function TopRow({ rank, entry, currentBcvRate }: TopRowProps) {
       <div
         className={clsx(
           "w-10 h-10 flex-shrink-0 rounded-[11px] flex items-center justify-center",
-          meta.avatarClass
+          isArchived ? "bg-bg-card text-text-muted" : meta.avatarClass
         )}
       >
         <Icon size={17} strokeWidth={2} />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="text-[13.5px] font-semibold truncate">{entry.account.name}</div>
+        <div className="text-[13.5px] font-semibold truncate">
+          <span className={isArchived ? "text-text-secondary" : ""}>
+            {entry.account.name}
+          </span>
+          {isArchived && (
+            <span className="text-text-muted text-[10.5px] font-normal ml-1">
+              (Archivada)
+            </span>
+          )}
+        </div>
         <span className="inline-block text-[10.5px] font-bold text-text-secondary bg-bg-card px-2 py-0.5 rounded-full mt-1">
           {entry.transactionCount} {entry.transactionCount === 1 ? "transac." : "transac."}
         </span>

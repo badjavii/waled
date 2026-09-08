@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { listTransactions } from "@/ipc/transactions";
-import { listAccounts } from "@/ipc/accounts";
+import { listAllAccounts } from "@/ipc/accounts";
 import { listReminders } from "@/ipc/reminders";
 import { getCurrentBcvRate } from "@/ipc/bcv";
 import {
@@ -21,18 +21,33 @@ interface DashboardScreenProps {
 }
 
 export function DashboardScreen({ onNavigate }: DashboardScreenProps) {
-  const txQuery = useQuery({ queryKey: ["transactions"], queryFn: listTransactions });
-  const accountsQuery = useQuery({ queryKey: ["accounts"], queryFn: listAccounts });
-  const remindersQuery = useQuery({ queryKey: ["reminders"], queryFn: listReminders });
-  const bcvQuery = useQuery({ queryKey: ["bcv-rate"], queryFn: getCurrentBcvRate });
+  const txQuery = useQuery({
+    queryKey: ["transactions"],
+    queryFn: listTransactions,
+  });
+
+  // Uses ALL accounts so that historical aggregates include accounts
+  // that have been archived after being used (per spec §1.3).
+  const accountsQuery = useQuery({
+    queryKey: ["accounts", "all"],
+    queryFn: listAllAccounts,
+  });
+
+  const remindersQuery = useQuery({
+    queryKey: ["reminders"],
+    queryFn: listReminders,
+  });
+  const bcvQuery = useQuery({
+    queryKey: ["bcv-rate"],
+    queryFn: getCurrentBcvRate,
+  });
 
   const isLoading =
     txQuery.isLoading || accountsQuery.isLoading || remindersQuery.isLoading;
 
   const monthRange = useMemo(() => currentMonthRange(), []);
   const totals = useMemo(
-    () =>
-      computeMonthlyTotals(txQuery.data ?? [], monthRange.from, monthRange.to),
+    () => computeMonthlyTotals(txQuery.data ?? [], monthRange.from, monthRange.to),
     [txQuery.data, monthRange]
   );
   const topAccounts = useMemo(
