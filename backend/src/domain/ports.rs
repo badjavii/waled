@@ -25,12 +25,20 @@ pub trait WalletRepository: Send + Sync {
 
 /// Persistence port for accounts.
 pub trait AccountRepository: Send + Sync {
-    fn list(&self) -> DomainResult<Vec<Account>>;
-    fn list_periodic(&self) -> DomainResult<Vec<Account>>;
+    /// List only active (non-archived) accounts. Used by UI listings and
+    /// by the transaction form's account selector.
+    fn list_active(&self) -> DomainResult<Vec<Account>>;
+    /// List all accounts including archived. Used for exports and for
+    /// resolving account references from historical transactions and
+    /// monthly aggregates.
+    fn list_all(&self) -> DomainResult<Vec<Account>>;
+    /// List only active periodic accounts. Used by the reminder service.
+    fn list_active_periodic(&self) -> DomainResult<Vec<Account>>;
     fn get(&self, id: &str) -> DomainResult<Account>;
     fn create(&self, account: &Account) -> DomainResult<()>;
     fn update(&self, account: &Account) -> DomainResult<()>;
-    fn delete(&self, id: &str) -> DomainResult<()>;
+    /// Soft-delete: sets `archived_at` to now. The row is preserved.
+    fn archive(&self, id: &str) -> DomainResult<()>;
     fn count(&self) -> DomainResult<i64>;
 }
 

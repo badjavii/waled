@@ -1,13 +1,8 @@
 //! Core domain models for the Waled expense tracker.
-//!
-//! All monetary amounts are stored in Venezuelan Bolívares (VES). The
-//! USD equivalent of a transaction is derived at read time from its
-//! frozen `bcv_rate_at_payment`.
 
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 
-/// High level classification for an expense account.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AccountType {
     #[serde(rename = "Servicios Básicos")]
@@ -52,20 +47,20 @@ impl AccountType {
     }
 }
 
-/// A payment method. Soft-deletable via `archived_at`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Wallet {
     pub id: String,
     pub name: String,
     pub description: String,
     pub is_digital: bool,
-    /// UTC timestamp of when the wallet was archived, or `None` if active.
-    /// Archived wallets are hidden from selectors and listings but kept
-    /// in the database to preserve referential integrity with historical
-    /// transactions.
     pub archived_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
+/// An expense bucket. Soft-deletable via `archived_at`.
+///
+/// Archived accounts are hidden from selectors and reminders, but remain
+/// in the database to preserve referential integrity and to keep
+/// historical transactions and monthly aggregates accurate.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Account {
     pub id: String,
@@ -75,6 +70,8 @@ pub struct Account {
     pub is_periodic: bool,
     pub periodicity_days: Option<i64>,
     pub notify: bool,
+    /// UTC timestamp of when the account was archived, or `None` if active.
+    pub archived_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
