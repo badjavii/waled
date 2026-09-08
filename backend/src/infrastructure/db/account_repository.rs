@@ -1,5 +1,6 @@
 //! SQLite-backed implementation of [`AccountRepository`].
 
+use chrono::{DateTime, Utc};
 use rusqlite::{params, Row};
 
 use crate::domain::errors::{DomainError, DomainResult};
@@ -27,6 +28,21 @@ impl SqliteAccountRepository {
                 format!("unknown account_type: {type_label}").into(),
             )
         })?;
+        let archived_text: Option<String> = row.get("archived_at")?;
+        let archived_at = match archived_text {
+            Some(text) => Some(
+                DateTime::parse_from_rfc3339(&text)
+                    .map(|dt| dt.with_timezone(&Utc))
+                    .map_err(|err| {
+                        rusqlite::Error::FromSqlConversionFailure(
+                            0,
+                            rusqlite::types::Type::Text,
+                            Box::new(err),
+                        )
+                    })?,
+            ),
+            None => None,
+        };
         Ok(Account {
             id: row.get("id")?,
             name: row.get("name")?,
@@ -35,6 +51,7 @@ impl SqliteAccountRepository {
             is_periodic: row.get::<_, i64>("is_periodic")? != 0,
             periodicity_days: row.get("periodicity_days")?,
             notify: row.get::<_, i64>("notify")? != 0,
+            archived_at,
         })
     }
 }
@@ -43,15 +60,16 @@ fn persist_err(err: impl std::fmt::Display) -> DomainError {
     DomainError::Persistence(err.to_string())
 }
 
+const SELECT_COLUMNS: &str =
+    "id, name, description, account_type, is_periodic, periodicity_days, notify, archived_at";
+
 impl AccountRepository for SqliteAccountRepository {
-    fn list(&self) -> DomainResult<Vec<Account>> {
+    fn list_active(&self) -> DomainResult<Vec<Account>> {
         let connection = self.pool.get().map_err(persist_err)?;
-        let mut stmt = connection
-            .prepare(
-                "SELECT id, name, description, account_type, is_periodic, \
-                    periodicity_days, notify FROM accounts ORDER BY name",
-            )
-            .map_err(persist_err)?;
+        let sql = format!(
+            "SELECT {SELECT_COLUMNS} FROM accounts WHERE archived_at IS NULL ORDER BY name"
+        );
+        let mut stmt = connection.prepare(&sql).map_err(persist_err)?;
         let rows = stmt
             .query_map([], Self::map_row)
             .map_err(persist_err)?
@@ -60,15 +78,30 @@ impl AccountRepository for SqliteAccountRepository {
         Ok(rows)
     }
 
-    fn list_periodic(&self) -> DomainResult<Vec<Account>> {
+    fn list_all(&self) -> DomainResult<Vec<Account>> {
         let connection = self.pool.get().map_err(persist_err)?;
-        let mut stmt = connection
-            .prepare(
-                "SELECT id, name, description, account_type, is_periodic, \
-                    periodicity_days, notify FROM accounts \
-                 WHERE is_periodic = 1 AND periodicity_days IS NOT NULL",
-            )
+        let sql = format!(
+            "SELECT {SELECT_COLUMNS} FROM accounts \
+             ORDER BY archived_at IS NOT NULL, name"
+        );
+        let mut stmt = connection.prepare(&sql).map_err(persist_err)?;
+        let rows = stmt
+            .query_map([], Self::map_row)
+            .map_err(persist_err)?
+            .collect::<rusqlite::Result<Vec<_>>>()
             .map_err(persist_err)?;
+        Ok(rows)
+    }
+
+    fn list_active_periodic(&self) -> DomainResult<Vec<Account>> {
+        let connection = self.pool.get().map_err(persist_err)?;
+        let sql = format!(
+            "SELECT {SELECT_COLUMNS} FROM accounts \
+             WHERE archived_at IS NULL \
+               AND is_periodic = 1 \
+               AND periodicity_days IS NOT NULL"
+        );
+        let mut stmt = connection.prepare(&sql).map_err(persist_err)?;
         let rows = stmt
             .query_map([], Self::map_row)
             .map_err(persist_err)?
@@ -79,13 +112,9 @@ impl AccountRepository for SqliteAccountRepository {
 
     fn get(&self, id: &str) -> DomainResult<Account> {
         let connection = self.pool.get().map_err(persist_err)?;
+        let sql = format!("SELECT {SELECT_COLUMNS} FROM accounts WHERE id = ?1");
         connection
-            .query_row(
-                "SELECT id, name, description, account_type, is_periodic, \
-                    periodicity_days, notify FROM accounts WHERE id = ?1",
-                params![id],
-                Self::map_row,
-            )
+            .query_row(&sql, params![id], Self::map_row)
             .map_err(|err| match err {
                 rusqlite::Error::QueryReturnedNoRows => {
                     DomainError::NotFound(format!("account {id}"))
@@ -96,10 +125,12 @@ impl AccountRepository for SqliteAccountRepository {
 
     fn create(&self, account: &Account) -> DomainResult<()> {
         let connection = self.pool.get().map_err(persist_err)?;
+        let archived_text = account.archived_at.map(|dt| dt.to_rfc3339());
         connection
             .execute(
                 "INSERT INTO accounts (id, name, description, account_type, is_periodic, \
-                    periodicity_days, notify) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                    periodicity_days, notify, archived_at) \
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
                 params![
                     account.id,
                     account.name,
@@ -108,6 +139,7 @@ impl AccountRepository for SqliteAccountRepository {
                     account.is_periodic as i64,
                     account.periodicity_days,
                     account.notify as i64,
+                    archived_text,
                 ],
             )
             .map_err(persist_err)?;
@@ -116,10 +148,12 @@ impl AccountRepository for SqliteAccountRepository {
 
     fn update(&self, account: &Account) -> DomainResult<()> {
         let connection = self.pool.get().map_err(persist_err)?;
+        let archived_text = account.archived_at.map(|dt| dt.to_rfc3339());
         let affected = connection
             .execute(
                 "UPDATE accounts SET name = ?2, description = ?3, account_type = ?4, \
-                    is_periodic = ?5, periodicity_days = ?6, notify = ?7 WHERE id = ?1",
+                    is_periodic = ?5, periodicity_days = ?6, notify = ?7, \
+                    archived_at = ?8 WHERE id = ?1",
                 params![
                     account.id,
                     account.name,
@@ -128,6 +162,7 @@ impl AccountRepository for SqliteAccountRepository {
                     account.is_periodic as i64,
                     account.periodicity_days,
                     account.notify as i64,
+                    archived_text,
                 ],
             )
             .map_err(persist_err)?;
@@ -137,27 +172,31 @@ impl AccountRepository for SqliteAccountRepository {
         Ok(())
     }
 
-    fn delete(&self, id: &str) -> DomainResult<()> {
+    fn archive(&self, id: &str) -> DomainResult<()> {
         let connection = self.pool.get().map_err(persist_err)?;
-        connection
-            .execute("DELETE FROM accounts WHERE id = ?1", params![id])
-            .map_err(|err| match err {
-                rusqlite::Error::SqliteFailure(inner, _)
-                    if inner.code == rusqlite::ErrorCode::ConstraintViolation =>
-                {
-                    DomainError::Conflict(
-                        "account is referenced by existing transactions".into(),
-                    )
-                }
-                other => DomainError::Persistence(other.to_string()),
-            })?;
+        let now = Utc::now().to_rfc3339();
+        let affected = connection
+            .execute(
+                "UPDATE accounts SET archived_at = ?2 WHERE id = ?1 AND archived_at IS NULL",
+                params![id, now],
+            )
+            .map_err(persist_err)?;
+        if affected == 0 {
+            return Err(DomainError::NotFound(format!(
+                "account {id} not found or already archived"
+            )));
+        }
         Ok(())
     }
 
     fn count(&self) -> DomainResult<i64> {
         let connection = self.pool.get().map_err(persist_err)?;
         connection
-            .query_row("SELECT COUNT(*) FROM accounts", [], |row| row.get(0))
+            .query_row(
+                "SELECT COUNT(*) FROM accounts WHERE archived_at IS NULL",
+                [],
+                |row| row.get(0),
+            )
             .map_err(persist_err)
     }
 }

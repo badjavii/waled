@@ -22,7 +22,8 @@ CREATE TABLE IF NOT EXISTS accounts (
     account_type TEXT NOT NULL,
     is_periodic INTEGER NOT NULL DEFAULT 0,
     periodicity_days INTEGER,
-    notify INTEGER NOT NULL DEFAULT 0
+    notify INTEGER NOT NULL DEFAULT 0,
+    archived_at TEXT NULL
 );
 
 CREATE TABLE IF NOT EXISTS transactions (
@@ -60,7 +61,6 @@ pub fn run(pool: &SqlitePool) -> DomainResult<()> {
     connection
         .execute_batch(SCHEMA)
         .map_err(|err| DomainError::Persistence(err.to_string()))?;
-    // Drop the legacy bcv_rates table if it existed in v0.1.x.
     connection
         .execute("DROP TABLE IF EXISTS bcv_rates", params![])
         .map_err(|err| DomainError::Persistence(err.to_string()))?;
