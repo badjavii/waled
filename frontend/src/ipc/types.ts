@@ -12,7 +12,6 @@ export interface Wallet {
   name: string;
   description: string;
   is_digital: boolean;
-  /** ISO 8601 UTC timestamp when the wallet was archived, or null if active. */
   archived_at: string | null;
 }
 
@@ -22,9 +21,11 @@ export interface Account {
   description: string;
   account_type: AccountType;
   is_periodic: boolean;
-  periodicity_days: number | null;
+  /** Day of month (1-31) the billing window opens. `null` for non-periodic. */
+  start_day: number | null;
+  /** Day of month (1-31) the payment is due. `null` for non-periodic. */
+  due_day: number | null;
   notify: boolean;
-  /** ISO 8601 UTC timestamp when the account was archived, or null if active. */
   archived_at: string | null;
 }
 
@@ -52,11 +53,34 @@ export interface BcvRate {
   fetched_at: string;
 }
 
+export type NotificationKind =
+  | "open"
+  | "middle"
+  | "day_before"
+  | "five_days_before";
+
+export interface NextNotification {
+  kind: NotificationKind;
+  /** ISO "YYYY-MM-DD". */
+  date: string;
+  /** True when `date` falls in a different calendar month than the payment cycle. */
+  crosses_month: boolean;
+}
+
 export interface Reminder {
   account_id: string;
   name: string;
   account_type: AccountType;
+  start_day: number;
+  due_day: number;
+  /** ISO "YYYY-MM-DD" — the next relevant due date. */
   due_date: string;
-  periodicity_days: number;
-  ves_amount: number;
+  /** True if the cycle at `due_date` is paid. */
+  is_paid: boolean;
+  /** True if the account has any transaction in the current calendar month. */
+  paid_in_current_month: boolean;
+  /** ISO "YYYY-MM-DD" — the most recent payment date in the current month,
+   *  or null if there is no payment this month. */
+  paid_at: string | null;
+  next_notification: NextNotification | null;
 }
