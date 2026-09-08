@@ -6,18 +6,14 @@ export interface AccountInput {
   description: string;
   account_type: AccountType;
   is_periodic: boolean;
-  periodicity_days: number | null;
+  start_day: number | null;
+  due_day: number | null;
   notify: boolean;
 }
 
-/** Only active (non-archived) accounts. Used for the Accounts screen
- *  listing and for the account selector when creating transactions. */
 export const listAccounts = (): Promise<Account[]> =>
   invoke("list_accounts");
 
-/** All accounts including archived. Used by read-only views to
- *  correctly hydrate account references in historical transactions
- *  and in dashboard aggregates. */
 export const listAllAccounts = (): Promise<Account[]> =>
   invoke("list_all_accounts");
 

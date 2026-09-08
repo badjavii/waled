@@ -21,9 +21,18 @@ CREATE TABLE IF NOT EXISTS accounts (
     description TEXT NOT NULL DEFAULT '',
     account_type TEXT NOT NULL,
     is_periodic INTEGER NOT NULL DEFAULT 0,
-    periodicity_days INTEGER,
+    start_day INTEGER,
+    due_day INTEGER,
     notify INTEGER NOT NULL DEFAULT 0,
-    archived_at TEXT NULL
+    archived_at TEXT NULL,
+    CHECK (
+        is_periodic = 0 OR (
+            start_day IS NOT NULL AND due_day IS NOT NULL
+            AND start_day BETWEEN 1 AND 31
+            AND due_day BETWEEN 1 AND 31
+            AND start_day <= due_day
+        )
+    )
 );
 
 CREATE TABLE IF NOT EXISTS transactions (

@@ -65,7 +65,8 @@ pub struct AccountInput {
     pub description: String,
     pub account_type: AccountType,
     pub is_periodic: bool,
-    pub periodicity_days: Option<i64>,
+    pub start_day: Option<i64>,
+    pub due_day: Option<i64>,
     pub notify: bool,
 }
 
@@ -74,9 +75,6 @@ pub fn list_accounts(state: State<'_, AppState>) -> CommandResult<Vec<Account>> 
     state.accounts.list_active().map_err(map_error)
 }
 
-/// List all accounts including archived ones. Used by read-only views
-/// (transactions history, dashboard aggregates) to hydrate account
-/// references even when the account has been archived.
 #[tauri::command]
 pub fn list_all_accounts(state: State<'_, AppState>) -> CommandResult<Vec<Account>> {
     state.accounts.list_all().map_err(map_error)
@@ -91,7 +89,8 @@ pub fn create_account(state: State<'_, AppState>, input: AccountInput) -> Comman
             input.description,
             input.account_type,
             input.is_periodic,
-            input.periodicity_days,
+            input.start_day,
+            input.due_day,
             input.notify,
         )
         .map_err(map_error)

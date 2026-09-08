@@ -1,5 +1,5 @@
 import { clsx } from "clsx";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, CheckCircle2 } from "lucide-react";
 import type { Reminder } from "@/ipc/types";
 import { getAccountTypeMeta } from "@/lib/accountTypes";
 import { formatIsoDateShort } from "@/lib/format";
@@ -14,7 +14,12 @@ export function UpcomingPaymentsCard({
   reminders,
   onSeeAll,
 }: UpcomingPaymentsCardProps) {
-  const top = reminders.slice(0, 5);
+  // Show pending first, then paid; take top 5 total.
+  const sorted = [...reminders].sort((a, b) => {
+    if (a.is_paid !== b.is_paid) return a.is_paid ? 1 : -1;
+    return a.due_date.localeCompare(b.due_date);
+  });
+  const top = sorted.slice(0, 5);
 
   return (
     <section className="bg-bg-card border border-border-strong rounded-2xl p-5 flex flex-col">
@@ -31,7 +36,7 @@ export function UpcomingPaymentsCard({
 
       {top.length === 0 ? (
         <div className="flex-1 flex items-center justify-center text-text-muted text-[13px] py-8 text-center">
-          No hay pagos periódicos por vencer en las próximas 3 semanas.
+          No hay cuentas periódicas activas.
         </div>
       ) : (
         <div className="flex flex-col gap-2.5 flex-1">
@@ -54,10 +59,14 @@ function UpcomingRow({ reminder }: { reminder: Reminder }) {
       <div
         className={clsx(
           "w-10 h-10 flex-shrink-0 rounded-[11px] flex items-center justify-center",
-          meta.avatarClass
+          reminder.is_paid ? "bg-brand/10 text-brand" : meta.avatarClass
         )}
       >
-        <Icon size={17} strokeWidth={2} />
+        {reminder.is_paid ? (
+          <CheckCircle2 size={17} strokeWidth={2} />
+        ) : (
+          <Icon size={17} strokeWidth={2} />
+        )}
       </div>
       <div className="min-w-0 flex-1">
         <div className="text-[13.5px] font-semibold truncate">{reminder.name}</div>
@@ -69,14 +78,20 @@ function UpcomingRow({ reminder }: { reminder: Reminder }) {
         {formatIsoDateShort(reminder.due_date)}
       </div>
       <div className="w-[100px] text-right">
-        <span
-          className={clsx(
-            "inline-block text-[11px] font-bold px-2.5 py-1 rounded-full",
-            urgency.toneClass
-          )}
-        >
-          {urgency.label}
-        </span>
+        {reminder.is_paid ? (
+          <span className="inline-block text-[11px] font-bold text-brand bg-brand/10 px-2.5 py-1 rounded-full">
+            pagado
+          </span>
+        ) : (
+          <span
+            className={clsx(
+              "inline-block text-[11px] font-bold px-2.5 py-1 rounded-full",
+              urgency.toneClass
+            )}
+          >
+            {urgency.label}
+          </span>
+        )}
       </div>
     </div>
   );

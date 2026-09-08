@@ -14,14 +14,26 @@ interface AccountModalProps {
   editing: Account | null;
 }
 
-const DEFAULT_PERIODICITY = 30;
+const DEFAULT_START_DAY = 1;
+const DEFAULT_DUE_DAY = 15;
 
-const DEFAULT_FORM: AccountInput = {
+interface FormState {
+  name: string;
+  description: string;
+  account_type: AccountType;
+  is_periodic: boolean;
+  start_day_input: string;
+  due_day_input: string;
+  notify: boolean;
+}
+
+const DEFAULT_FORM: FormState = {
   name: "",
   description: "",
   account_type: "Servicios Básicos",
   is_periodic: false,
-  periodicity_days: null,
+  start_day_input: String(DEFAULT_START_DAY),
+  due_day_input: String(DEFAULT_DUE_DAY),
   notify: false,
 };
 
@@ -29,10 +41,7 @@ export function AccountModal({ open, onClose, editing }: AccountModalProps) {
   const queryClient = useQueryClient();
   const isEditing = editing !== null;
 
-  const [form, setForm] = useState<AccountInput>(DEFAULT_FORM);
-  const [periodicityInput, setPeriodicityInput] = useState<string>(
-    String(DEFAULT_PERIODICITY)
-  );
+  const [form, setForm] = useState<FormState>(DEFAULT_FORM);
   const [touched, setTouched] = useState(false);
 
   useEffect(() => {
@@ -44,13 +53,12 @@ export function AccountModal({ open, onClose, editing }: AccountModalProps) {
         description: editing.description,
         account_type: editing.account_type,
         is_periodic: editing.is_periodic,
-        periodicity_days: editing.periodicity_days,
+        start_day_input: String(editing.start_day ?? DEFAULT_START_DAY),
+        due_day_input: String(editing.due_day ?? DEFAULT_DUE_DAY),
         notify: editing.notify,
       });
-      setPeriodicityInput(String(editing.periodicity_days ?? DEFAULT_PERIODICITY));
     } else {
       setForm(DEFAULT_FORM);
-      setPeriodicityInput(String(DEFAULT_PERIODICITY));
     }
   }, [open, editing]);
 
@@ -58,34 +66,37 @@ export function AccountModal({ open, onClose, editing }: AccountModalProps) {
     setForm((current) => ({
       ...current,
       is_periodic: next,
-      periodicity_days: next
-        ? Number.parseInt(periodicityInput, 10) || DEFAULT_PERIODICITY
-        : null,
-      // If periodicity is turned off, forcibly disable notify too — it
-      // has no meaning without a cycle.
       notify: next ? current.notify : false,
     }));
   };
 
-  const handlePeriodicityChange = (raw: string) => {
-    // Keep only digits, allow empty string while typing.
-    const cleaned = raw.replace(/\D/g, "");
-    setPeriodicityInput(cleaned);
-    setForm((current) => ({
-      ...current,
-      periodicity_days: cleaned ? Number.parseInt(cleaned, 10) : null,
-    }));
+  const handleDayInput = (
+    field: "start_day_input" | "due_day_input",
+    raw: string
+  ) => {
+    const cleaned = raw.replace(/\D/g, "").slice(0, 2);
+    setForm((current) => ({ ...current, [field]: cleaned }));
+  };
+
+  const parseDay = (raw: string): number | null => {
+    if (!raw) return null;
+    const n = Number.parseInt(raw, 10);
+    return Number.isFinite(n) ? n : null;
   };
 
   const validate = (): string | null => {
     if (!form.name.trim()) return "El nombre es obligatorio";
     if (form.is_periodic) {
-      const days = form.periodicity_days;
-      if (!days || days <= 0) {
-        return "La periodicidad debe ser un número positivo";
+      const start = parseDay(form.start_day_input);
+      const due = parseDay(form.due_day_input);
+      if (start === null || start < 1 || start > 31) {
+        return "El día de inicio debe estar entre 1 y 31";
       }
-      if (days > 3650) {
-        return "La periodicidad es demasiado grande (máximo 3650 días)";
+      if (due === null || due < 1 || due > 31) {
+        return "El día de vencimiento debe estar entre 1 y 31";
+      }
+      if (start > due) {
+        return "El día de inicio no puede ser mayor al de vencimiento";
       }
     }
     return null;
@@ -93,21 +104,25 @@ export function AccountModal({ open, onClose, editing }: AccountModalProps) {
 
   const mutation = useMutation({
     mutationFn: async () => {
+      const start = parseDay(form.start_day_input);
+      const due = parseDay(form.due_day_input);
       const payload: AccountInput = {
         name: form.name.trim(),
         description: form.description.trim(),
         account_type: form.account_type,
         is_periodic: form.is_periodic,
-        periodicity_days: form.is_periodic ? form.periodicity_days : null,
+        start_day: form.is_periodic ? start : null,
+        due_day: form.is_periodic ? due : null,
         notify: form.is_periodic ? form.notify : false,
       };
       if (isEditing && editing) {
-        return updateAccount({ id: editing.id, ...payload });
+        return updateAccount({ id: editing.id, ...payload, archived_at: editing.archived_at });
       }
       return createAccount(payload);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["reminders"] });
       toast.success(isEditing ? "Cuenta actualizada" : "Cuenta creada");
       onClose();
     },
@@ -130,10 +145,6 @@ export function AccountModal({ open, onClose, editing }: AccountModalProps) {
 
   const error = touched ? validate() : null;
   const nameError = touched && !form.name.trim();
-  const periodicityError =
-    touched &&
-    form.is_periodic &&
-    (!form.periodicity_days || form.periodicity_days <= 0);
 
   return (
     <Modal
@@ -145,7 +156,7 @@ export function AccountModal({ open, onClose, editing }: AccountModalProps) {
           ? "Ajusta los datos de esta cuenta."
           : "Registra un nuevo compromiso de gasto (recurrente o puntual)."
       }
-      widthClass="w-[520px]"
+      widthClass="w-[540px]"
     >
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <Field
@@ -195,33 +206,49 @@ export function AccountModal({ open, onClose, editing }: AccountModalProps) {
             checked={form.is_periodic}
             onChange={togglePeriodic}
             label="Cuenta periódica"
-            hint="Se repite cada cierto número de días (mensualidad, servicio, suscripción)."
+            hint="Se paga cada mes dentro de una ventana de fechas fija."
           />
 
           {form.is_periodic && (
-            <div className="pl-[50px]">
-              <label className="block">
-                <span className="block text-[11.5px] font-bold text-text-secondary mb-1.5">
-                  Periodicidad (días)
-                </span>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={periodicityInput}
-                  onChange={(event) => handlePeriodicityChange(event.target.value)}
-                  className="input w-[140px] font-mono"
-                  placeholder="30"
-                />
-                {periodicityError ? (
-                  <span className="block text-[10.5px] text-expense mt-1.5">
-                    Debe ser un número positivo
+            <div className="pl-[50px] flex flex-col gap-3">
+              <div className="flex gap-4">
+                <label className="block flex-1">
+                  <span className="block text-[11.5px] font-bold text-text-secondary mb-1.5">
+                    Día de inicio
                   </span>
-                ) : (
-                  <span className="block text-[10.5px] text-text-muted mt-1.5">
-                    Ej: 30 (mensual), 15 (quincenal), 365 (anual).
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={form.start_day_input}
+                    onChange={(event) =>
+                      handleDayInput("start_day_input", event.target.value)
+                    }
+                    className="input font-mono w-full"
+                    placeholder="1"
+                  />
+                </label>
+                <label className="block flex-1">
+                  <span className="block text-[11.5px] font-bold text-text-secondary mb-1.5">
+                    Día de vencimiento
                   </span>
-                )}
-              </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={form.due_day_input}
+                    onChange={(event) =>
+                      handleDayInput("due_day_input", event.target.value)
+                    }
+                    className="input font-mono w-full"
+                    placeholder="15"
+                  />
+                </label>
+              </div>
+              <p className="text-[10.5px] text-text-muted leading-relaxed">
+                Los días son del calendario mensual (1 a 31). Si el día
+                excede la duración del mes (ej: 31 en febrero), se ajusta
+                automáticamente al último día. La ventana no puede cruzar
+                de un mes al siguiente.
+              </p>
             </div>
           )}
 
@@ -231,14 +258,14 @@ export function AccountModal({ open, onClose, editing }: AccountModalProps) {
             label="Incluir en recordatorios por correo"
             hint={
               form.is_periodic
-                ? "Recibirás un aviso por correo cerca del vencimiento."
+                ? "Recibirás avisos automáticos en cada momento del ciclo."
                 : "Sólo disponible para cuentas periódicas."
             }
             disabled={!form.is_periodic}
           />
         </div>
 
-        {error && touched && !nameError && !periodicityError && (
+        {error && touched && !nameError && (
           <div className="text-[11.5px] text-expense">{error}</div>
         )}
 

@@ -49,7 +49,8 @@ impl SqliteAccountRepository {
             description: row.get("description")?,
             account_type,
             is_periodic: row.get::<_, i64>("is_periodic")? != 0,
-            periodicity_days: row.get("periodicity_days")?,
+            start_day: row.get("start_day")?,
+            due_day: row.get("due_day")?,
             notify: row.get::<_, i64>("notify")? != 0,
             archived_at,
         })
@@ -61,7 +62,7 @@ fn persist_err(err: impl std::fmt::Display) -> DomainError {
 }
 
 const SELECT_COLUMNS: &str =
-    "id, name, description, account_type, is_periodic, periodicity_days, notify, archived_at";
+    "id, name, description, account_type, is_periodic, start_day, due_day, notify, archived_at";
 
 impl AccountRepository for SqliteAccountRepository {
     fn list_active(&self) -> DomainResult<Vec<Account>> {
@@ -99,7 +100,8 @@ impl AccountRepository for SqliteAccountRepository {
             "SELECT {SELECT_COLUMNS} FROM accounts \
              WHERE archived_at IS NULL \
                AND is_periodic = 1 \
-               AND periodicity_days IS NOT NULL"
+               AND start_day IS NOT NULL \
+               AND due_day IS NOT NULL"
         );
         let mut stmt = connection.prepare(&sql).map_err(persist_err)?;
         let rows = stmt
@@ -129,15 +131,16 @@ impl AccountRepository for SqliteAccountRepository {
         connection
             .execute(
                 "INSERT INTO accounts (id, name, description, account_type, is_periodic, \
-                    periodicity_days, notify, archived_at) \
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                    start_day, due_day, notify, archived_at) \
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
                 params![
                     account.id,
                     account.name,
                     account.description,
                     account.account_type.as_label(),
                     account.is_periodic as i64,
-                    account.periodicity_days,
+                    account.start_day,
+                    account.due_day,
                     account.notify as i64,
                     archived_text,
                 ],
@@ -152,15 +155,16 @@ impl AccountRepository for SqliteAccountRepository {
         let affected = connection
             .execute(
                 "UPDATE accounts SET name = ?2, description = ?3, account_type = ?4, \
-                    is_periodic = ?5, periodicity_days = ?6, notify = ?7, \
-                    archived_at = ?8 WHERE id = ?1",
+                    is_periodic = ?5, start_day = ?6, due_day = ?7, notify = ?8, \
+                    archived_at = ?9 WHERE id = ?1",
                 params![
                     account.id,
                     account.name,
                     account.description,
                     account.account_type.as_label(),
                     account.is_periodic as i64,
-                    account.periodicity_days,
+                    account.start_day,
+                    account.due_day,
                     account.notify as i64,
                     archived_text,
                 ],
