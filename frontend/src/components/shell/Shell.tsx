@@ -31,7 +31,11 @@ const SCREEN_META: Record<Screen, { title: string; subtitle: string }> = {
 };
 
 interface ShellProps {
-  children: (screen: Screen, setScreen: (next: Screen) => void) => ReactNode;
+  children: (
+    screen: Screen,
+    setScreen: (next: Screen) => void,
+    openSettings: () => void
+  ) => ReactNode;
 }
 
 export function Shell({ children }: ShellProps) {
@@ -69,7 +73,7 @@ export function Shell({ children }: ShellProps) {
             loading={rateLoading}
           />
           <div className="flex-1 min-h-0 overflow-y-auto px-8 py-7">
-            {children(screen, setScreen)}
+            {children(screen, setScreen, () => setSettingsOpen(true))}
           </div>
         </main>
       </div>
