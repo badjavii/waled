@@ -133,7 +133,7 @@ export function AccountsScreen() {
         title="Eliminar cuenta"
         body={
           confirming
-            ? `¿Seguro que deseas eliminar "${confirming.name}"? Se quitará junto con su configuración de recordatorios. Si ya tiene transacciones registradas, la operación será rechazada.`
+            ? `¿Seguro que deseas eliminar "${confirming.name}"? Ya no aparecerá al registrar nuevas transacciones y sus recordatorios se detendrán. Se conserva en tu historial y en los reportes del mes.`
             : ""
         }
         confirmLabel="Eliminar"
