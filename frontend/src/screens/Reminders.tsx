@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, BellOff, CheckCircle2 } from "lucide-react";
+import { Loader2, BellOff, CheckCircle2, Settings as SettingsIcon } from "lucide-react";
 import { listReminders } from "@/ipc/reminders";
 import { getSettings } from "@/ipc/settings";
 import { partitionReminders } from "@/lib/reminders";
@@ -12,7 +12,11 @@ import { RecentlyPaidList } from "@/components/reminders/RecentlyPaidList";
 const UPCOMING_WINDOW_DAYS = 30;
 const RECENTLY_PAID_DAYS = 3;
 
-export function RemindersScreen() {
+interface RemindersScreenProps {
+  onOpenSettings: () => void;
+}
+
+export function RemindersScreen({ onOpenSettings }: RemindersScreenProps) {
   const remindersQuery = useQuery({
     queryKey: ["reminders"],
     queryFn: listReminders,
@@ -53,13 +57,21 @@ export function RemindersScreen() {
       {!webhookConfigured && (
         <div className="flex items-center gap-3 bg-bcv/[0.07] border border-bcv/25 rounded-[12px] px-4 py-3 mb-4">
           <BellOff size={16} className="text-bcv flex-shrink-0" />
-          <div className="text-[12.5px] text-bcv">
+          <div className="flex-1 text-[12.5px] text-bcv">
             <b>Sin webhook configurado.</b>{" "}
             <span className="text-[#a99a6a]">
-              El envío automático de correos está deshabilitado. Configúralo en
-              Configuración → Webhook de recordatorios para activarlo.
+              El envío automático de correos está deshabilitado. Configúralo
+              para activar los recordatorios por email.
             </span>
           </div>
+          <button
+            type="button"
+            onClick={onOpenSettings}
+            className="flex items-center gap-1.5 bg-bcv/12 hover:bg-bcv/20 border border-bcv/30 text-bcv font-semibold text-[12px] px-3 py-1.5 rounded-[9px] transition-colors whitespace-nowrap"
+          >
+            <SettingsIcon size={12} />
+            Configurar
+          </button>
         </div>
       )}
 
@@ -71,7 +83,6 @@ export function RemindersScreen() {
         <AllQuietState />
       ) : (
         <div className="flex flex-col gap-6">
-          {/* --- 1. Próximos pagos --- */}
           <section>
             <SectionHeading
               title="Próximos pagos"
@@ -87,7 +98,6 @@ export function RemindersScreen() {
             )}
           </section>
 
-          {/* --- 2. Vencidos --- */}
           {hasOverdue && (
             <section>
               <SectionHeading
@@ -99,7 +109,6 @@ export function RemindersScreen() {
             </section>
           )}
 
-          {/* --- 3. Recientemente pagados --- */}
           {hasRecentlyPaid && (
             <section>
               <SectionHeading

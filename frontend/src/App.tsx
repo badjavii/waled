@@ -9,8 +9,12 @@ import type { Screen } from "@/types/screens";
 export default function App() {
   return (
     <Shell>
-      {(screen, setScreen) => (
-        <ScreenRouter screen={screen} onNavigate={setScreen} />
+      {(screen, setScreen, openSettings) => (
+        <ScreenRouter
+          screen={screen}
+          onNavigate={setScreen}
+          onOpenSettings={openSettings}
+        />
       )}
     </Shell>
   );
@@ -19,9 +23,10 @@ export default function App() {
 interface ScreenRouterProps {
   screen: Screen;
   onNavigate: (next: Screen) => void;
+  onOpenSettings: () => void;
 }
 
-function ScreenRouter({ screen, onNavigate }: ScreenRouterProps) {
+function ScreenRouter({ screen, onNavigate, onOpenSettings }: ScreenRouterProps) {
   switch (screen) {
     case "dashboard":
       return <DashboardScreen onNavigate={onNavigate} />;
@@ -32,6 +37,6 @@ function ScreenRouter({ screen, onNavigate }: ScreenRouterProps) {
     case "wallets":
       return <WalletsScreen />;
     case "reminders":
-      return <RemindersScreen />;
+      return <RemindersScreen onOpenSettings={onOpenSettings} />;
   }
 }
