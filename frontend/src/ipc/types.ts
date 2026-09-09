@@ -44,7 +44,10 @@ export interface Transaction {
 export interface Settings {
   user_name: string;
   user_email: string;
-  gas_webhook_url: string;
+  /** Reminder digest webhook (Enviar ahora + connectivity ping). */
+  gas_reminder_webhook_url: string;
+  /** Sync webhook for periodic account CRUD and payment marks. */
+  gas_sync_webhook_url: string;
 }
 
 export interface BcvRate {
