@@ -16,6 +16,8 @@ import type { Account } from "@/ipc/types";
 import { AccountModal } from "@/components/accounts/AccountModal";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { getAccountTypeMeta } from "@/lib/accountTypes";
+import { parseDomainError } from "@/lib/errors";
+import { NetworkRequiredModal } from "@/components/ui/NetworkRequiredModal";
 
 export function AccountsScreen() {
   const queryClient = useQueryClient();
@@ -25,6 +27,8 @@ export function AccountsScreen() {
     queryFn: listAccounts,
   });
 
+  const [networkError, setNetworkError] = useState<string | null>(null);
+  const [pendingArchive, setPendingArchive] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Account | null>(null);
   const [confirming, setConfirming] = useState<Account | null>(null);
@@ -36,11 +40,16 @@ export function AccountsScreen() {
       queryClient.invalidateQueries({ queryKey: ["reminders"] });
       toast.success("Cuenta eliminada");
       setConfirming(null);
+      setPendingArchive(null);
     },
-    onError: (err: unknown) => {
-      toast.error("No se pudo eliminar la cuenta", {
-        description: String(err),
-      });
+    onError: (error: unknown) => {
+      const parsed = parseDomainError(error);
+      if (parsed.kind === "NetworkRequired") {
+        setNetworkError(parsed.message);
+        setConfirming(null);
+        return;
+      }
+      toast.error("No se pudo eliminar la cuenta", { description: parsed.message });
     },
   });
 
@@ -130,7 +139,11 @@ export function AccountsScreen() {
       <ConfirmModal
         open={confirming !== null}
         onCancel={() => setConfirming(null)}
-        onConfirm={() => confirming && deletion.mutate(confirming.id)}
+        onConfirm={() => {
+          if (!confirming) return;
+          setPendingArchive(confirming.id);
+          deletion.mutate(confirming.id);
+        }}
         title="Eliminar cuenta"
         body={
           confirming
@@ -140,6 +153,23 @@ export function AccountsScreen() {
         confirmLabel="Eliminar"
         loading={deletion.isPending}
         destructive
+      />
+
+      <NetworkRequiredModal
+        open={networkError !== null}
+        onClose={() => {
+          setNetworkError(null);
+          setPendingArchive(null);
+        }}
+        onRetry={() => {
+          if (pendingArchive) {
+            setNetworkError(null);
+            deletion.mutate(pendingArchive);
+          }
+        }}
+        operationLabel="para archivar esta cuenta periódica"
+        detail={networkError ?? undefined}
+        retrying={deletion.isPending}
       />
     </>
   );

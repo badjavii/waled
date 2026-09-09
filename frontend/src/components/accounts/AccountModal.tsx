@@ -7,6 +7,8 @@ import { Select } from "@/components/ui/Select";
 import { createAccount, updateAccount, type AccountInput } from "@/ipc/accounts";
 import type { Account, AccountType } from "@/ipc/types";
 import { ACCOUNT_TYPES } from "@/lib/accountTypes";
+import { parseDomainError } from "@/lib/errors";
+import { NetworkRequiredModal } from "@/components/ui/NetworkRequiredModal";
 
 interface AccountModalProps {
   open: boolean;
@@ -43,6 +45,7 @@ export function AccountModal({ open, onClose, editing }: AccountModalProps) {
 
   const [form, setForm] = useState<FormState>(DEFAULT_FORM);
   const [touched, setTouched] = useState(false);
+  const [networkError, setNetworkError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -127,11 +130,16 @@ export function AccountModal({ open, onClose, editing }: AccountModalProps) {
       onClose();
     },
     onError: (error: unknown) => {
+      const parsed = parseDomainError(error);
+      if (parsed.kind === "NetworkRequired") {
+        setNetworkError(parsed.message);
+        return;
+      }
       toast.error(
         isEditing
           ? "No se pudo actualizar la cuenta"
           : "No se pudo crear la cuenta",
-        { description: String(error) }
+        { description: parsed.message }
       );
     },
   });
@@ -147,152 +155,170 @@ export function AccountModal({ open, onClose, editing }: AccountModalProps) {
   const nameError = touched && !form.name.trim();
 
   return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      title={isEditing ? "Editar cuenta" : "Nueva cuenta"}
-      subtitle={
-        isEditing
-          ? "Ajusta los datos de esta cuenta."
-          : "Registra un nuevo compromiso de gasto (recurrente o puntual)."
-      }
-      widthClass="w-[540px]"
-    >
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <Field
-          label="Nombre"
-          error={nameError ? "El nombre es obligatorio" : undefined}
-        >
-          <input
-            value={form.name}
-            onChange={(event) => setForm({ ...form, name: event.target.value })}
-            onBlur={() => setTouched(true)}
-            placeholder="Electricidad, Netflix, Alquiler…"
-            className="input"
-            autoFocus
-            maxLength={80}
-          />
-        </Field>
+    <>
+      <Modal
+        open={open}
+        onClose={onClose}
+        title={isEditing ? "Editar cuenta" : "Nueva cuenta"}
+        subtitle={
+          isEditing
+            ? "Ajusta los datos de esta cuenta."
+            : "Registra un nuevo compromiso de gasto (recurrente o puntual)."
+        }
+        widthClass="w-[540px]"
+      >
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <Field
+            label="Nombre"
+            error={nameError ? "El nombre es obligatorio" : undefined}
+          >
+            <input
+              value={form.name}
+              onChange={(event) => setForm({ ...form, name: event.target.value })}
+              onBlur={() => setTouched(true)}
+              placeholder="Electricidad, Netflix, Alquiler…"
+              className="input"
+              autoFocus
+              maxLength={80}
+            />
+          </Field>
 
-        <Field
-          label="Descripción"
-          hint="Opcional. Ayuda a recordar de qué se trata la cuenta."
-        >
-          <input
-            value={form.description}
-            onChange={(event) =>
-              setForm({ ...form, description: event.target.value })
-            }
-            placeholder="Recibo de luz del apartamento en Chacao."
-            className="input"
-            maxLength={200}
-          />
-        </Field>
+          <Field
+            label="Descripción"
+            hint="Opcional. Ayuda a recordar de qué se trata la cuenta."
+          >
+            <input
+              value={form.description}
+              onChange={(event) =>
+                setForm({ ...form, description: event.target.value })
+              }
+              placeholder="Recibo de luz del apartamento en Chacao."
+              className="input"
+              maxLength={200}
+            />
+          </Field>
 
-        <Field label="Categoría">
-          <Select<AccountType>
-            value={form.account_type}
-            onChange={(next) => setForm({ ...form, account_type: next })}
-            options={ACCOUNT_TYPES.map((type) => ({
-              value: type.label,
-              label: type.label,
-            }))}
-            ariaLabel="Categoría de la cuenta"
-          />
-        </Field>
+          <Field label="Categoría">
+            <Select<AccountType>
+              value={form.account_type}
+              onChange={(next) => setForm({ ...form, account_type: next })}
+              options={ACCOUNT_TYPES.map((type) => ({
+                value: type.label,
+                label: type.label,
+              }))}
+              ariaLabel="Categoría de la cuenta"
+            />
+          </Field>
 
-        <div className="flex flex-col gap-3 pt-3 border-t border-border-muted">
-          <Toggle
-            checked={form.is_periodic}
-            onChange={togglePeriodic}
-            label="Cuenta periódica"
-            hint="Se paga cada mes dentro de una ventana de fechas fija."
-          />
+          <div className="flex flex-col gap-3 pt-3 border-t border-border-muted">
+            <Toggle
+              checked={form.is_periodic}
+              onChange={togglePeriodic}
+              label="Cuenta periódica"
+              hint="Se paga cada mes dentro de una ventana de fechas fija."
+            />
 
-          {form.is_periodic && (
-            <div className="pl-[50px] flex flex-col gap-3">
-              <div className="flex gap-4">
-                <label className="block flex-1">
-                  <span className="block text-[11.5px] font-bold text-text-secondary mb-1.5">
-                    Día de inicio
-                  </span>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={form.start_day_input}
-                    onChange={(event) =>
-                      handleDayInput("start_day_input", event.target.value)
-                    }
-                    className="input font-mono w-full"
-                    placeholder="1"
-                  />
-                </label>
-                <label className="block flex-1">
-                  <span className="block text-[11.5px] font-bold text-text-secondary mb-1.5">
-                    Día de vencimiento
-                  </span>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={form.due_day_input}
-                    onChange={(event) =>
-                      handleDayInput("due_day_input", event.target.value)
-                    }
-                    className="input font-mono w-full"
-                    placeholder="15"
-                  />
-                </label>
+            {form.is_periodic && (
+              <div className="pl-[50px] flex flex-col gap-3">
+                <div className="flex gap-4">
+                  <label className="block flex-1">
+                    <span className="block text-[11.5px] font-bold text-text-secondary mb-1.5">
+                      Día de inicio
+                    </span>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={form.start_day_input}
+                      onChange={(event) =>
+                        handleDayInput("start_day_input", event.target.value)
+                      }
+                      className="input font-mono w-full"
+                      placeholder="1"
+                    />
+                  </label>
+                  <label className="block flex-1">
+                    <span className="block text-[11.5px] font-bold text-text-secondary mb-1.5">
+                      Día de vencimiento
+                    </span>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={form.due_day_input}
+                      onChange={(event) =>
+                        handleDayInput("due_day_input", event.target.value)
+                      }
+                      className="input font-mono w-full"
+                      placeholder="15"
+                    />
+                  </label>
+                </div>
+                <p className="text-[10.5px] text-text-muted leading-relaxed">
+                  Los días son del calendario mensual (1 a 31). Si el día
+                  excede la duración del mes (ej: 31 en febrero), se ajusta
+                  automáticamente al último día. La ventana no puede cruzar
+                  de un mes al siguiente.
+                </p>
               </div>
-              <p className="text-[10.5px] text-text-muted leading-relaxed">
-                Los días son del calendario mensual (1 a 31). Si el día
-                excede la duración del mes (ej: 31 en febrero), se ajusta
-                automáticamente al último día. La ventana no puede cruzar
-                de un mes al siguiente.
-              </p>
-            </div>
+            )}
+
+            <Toggle
+              checked={form.notify}
+              onChange={(next) => setForm({ ...form, notify: next })}
+              label="Incluir en recordatorios por correo"
+              hint={
+                form.is_periodic
+                  ? "Recibirás avisos automáticos en cada momento del ciclo."
+                  : "Sólo disponible para cuentas periódicas."
+              }
+              disabled={!form.is_periodic}
+            />
+          </div>
+
+          {error && touched && !nameError && (
+            <div className="text-[11.5px] text-expense">{error}</div>
           )}
 
-          <Toggle
-            checked={form.notify}
-            onChange={(next) => setForm({ ...form, notify: next })}
-            label="Incluir en recordatorios por correo"
-            hint={
-              form.is_periodic
-                ? "Recibirás avisos automáticos en cada momento del ciclo."
-                : "Sólo disponible para cuentas periódicas."
-            }
-            disabled={!form.is_periodic}
-          />
-        </div>
+          <div className="flex gap-3 mt-3">
+            <div className="flex-1" />
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={mutation.isPending}
+              className="bg-[#151c25] border border-border-strong text-text-main font-semibold text-sm px-5 py-2.5 rounded-[11px] hover:bg-bg-row transition-colors disabled:opacity-50"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={mutation.isPending}
+              className="bg-brand text-[#05130d] font-bold text-sm px-6 py-2.5 rounded-[11px] shadow-lg shadow-brand/25 hover:brightness-110 transition-all disabled:opacity-50"
+            >
+              {mutation.isPending
+                ? "Guardando…"
+                : isEditing
+                  ? "Actualizar"
+                  : "Crear cuenta"}
+            </button>
+          </div>
+        </form>
+      </Modal>
 
-        {error && touched && !nameError && (
-          <div className="text-[11.5px] text-expense">{error}</div>
-        )}
-
-        <div className="flex gap-3 mt-3">
-          <div className="flex-1" />
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={mutation.isPending}
-            className="bg-[#151c25] border border-border-strong text-text-main font-semibold text-sm px-5 py-2.5 rounded-[11px] hover:bg-bg-row transition-colors disabled:opacity-50"
-          >
-            Cancelar
-          </button>
-          <button
-            type="submit"
-            disabled={mutation.isPending}
-            className="bg-brand text-[#05130d] font-bold text-sm px-6 py-2.5 rounded-[11px] shadow-lg shadow-brand/25 hover:brightness-110 transition-all disabled:opacity-50"
-          >
-            {mutation.isPending
-              ? "Guardando…"
-              : isEditing
-                ? "Actualizar"
-                : "Crear cuenta"}
-          </button>
-        </div>
-      </form>
-    </Modal>
+      <NetworkRequiredModal
+        open={networkError !== null}
+        onClose={() => setNetworkError(null)}
+        onRetry={() => {
+          setNetworkError(null);
+          mutation.mutate();
+        }}
+        operationLabel={
+          isEditing
+            ? "para actualizar esta cuenta periódica"
+            : "para crear esta cuenta periódica"
+        }
+        detail={networkError ?? undefined}
+        retrying={mutation.isPending}
+      />
+    </>
   );
 }
 
