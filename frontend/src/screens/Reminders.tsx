@@ -35,7 +35,7 @@ export function RemindersScreen({ onOpenSettings }: RemindersScreenProps) {
   );
 
   const webhookConfigured =
-    (settingsQuery.data?.gas_webhook_url ?? "").trim().length > 0;
+    (settingsQuery.data?.gas_reminder_webhook_url ?? "").trim().length > 0;
 
   if (remindersQuery.isLoading) {
     return (
