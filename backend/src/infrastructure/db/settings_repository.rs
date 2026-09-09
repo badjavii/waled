@@ -28,37 +28,37 @@ impl SettingsRepository for SqliteSettingsRepository {
         let connection = self.pool.get().map_err(persist_err)?;
         connection
             .query_row(
-                "SELECT user_name, user_email, gas_webhook_url FROM settings WHERE id = 1",
+                "SELECT user_name, user_email, gas_reminder_webhook_url, gas_sync_webhook_url \
+                 FROM settings WHERE id = 1",
                 [],
                 |row| {
                     Ok(Settings {
                         user_name: row.get(0)?,
-                        user_email: row.get(1)?,
-                        gas_webhook_url: row.get(2)?,
+                        user_email: row.get(0 + 1)?,
+                        gas_reminder_webhook_url: row.get(2)?,
+                        gas_sync_webhook_url: row.get(3)?,
                     })
                 },
             )
-            .map_err(|err| match err {
-                rusqlite::Error::QueryReturnedNoRows => {
-                    DomainError::NotFound("settings row".into())
-                }
-                other => DomainError::Persistence(other.to_string()),
-            })
+            .map_err(persist_err)
     }
 
     fn save(&self, settings: &Settings) -> DomainResult<()> {
         let connection = self.pool.get().map_err(persist_err)?;
         connection
             .execute(
-                "INSERT INTO settings (id, user_name, user_email, gas_webhook_url) \
-                 VALUES (1, ?1, ?2, ?3) \
-                 ON CONFLICT(id) DO UPDATE SET user_name = excluded.user_name, \
+                "INSERT INTO settings (id, user_name, user_email, gas_reminder_webhook_url, gas_sync_webhook_url) \
+                 VALUES (1, ?1, ?2, ?3, ?4) \
+                 ON CONFLICT(id) DO UPDATE SET \
+                    user_name = excluded.user_name, \
                     user_email = excluded.user_email, \
-                    gas_webhook_url = excluded.gas_webhook_url",
+                    gas_reminder_webhook_url = excluded.gas_reminder_webhook_url, \
+                    gas_sync_webhook_url = excluded.gas_sync_webhook_url",
                 params![
                     settings.user_name,
                     settings.user_email,
-                    settings.gas_webhook_url
+                    settings.gas_reminder_webhook_url,
+                    settings.gas_sync_webhook_url,
                 ],
             )
             .map_err(persist_err)?;

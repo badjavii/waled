@@ -54,7 +54,8 @@ CREATE TABLE IF NOT EXISTS settings (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     user_name TEXT NOT NULL DEFAULT '',
     user_email TEXT NOT NULL DEFAULT '',
-    gas_webhook_url TEXT NOT NULL DEFAULT ''
+    gas_reminder_webhook_url TEXT NOT NULL DEFAULT '',
+    gas_sync_webhook_url TEXT NOT NULL DEFAULT ''
 );
 ";
 
