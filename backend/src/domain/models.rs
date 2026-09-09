@@ -95,7 +95,15 @@ pub struct Transaction {
 pub struct Settings {
     pub user_name: String,
     pub user_email: String,
-    pub gas_webhook_url: String,
+    /// Webhook that receives manual "Enviar ahora" digests and the ping
+    /// check from Settings. Dispatched from `ReminderService::send_digest`
+    /// and `ReminderService::ping`.
+    pub gas_reminder_webhook_url: String,
+    /// Webhook that receives synchronization events for periodic account
+    /// CRUD and payment marks. When empty, the app operates fully local
+    /// with no sync side-effects. When set, sync failures block CRUD
+    /// operations per spec §3.6 and §1.3 (STRICT ONLINE).
+    pub gas_sync_webhook_url: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
