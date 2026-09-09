@@ -26,6 +26,11 @@ pub enum DomainError {
 
     #[error("unexpected error: {0}")]
     Unexpected(String),
+
+    /// Raised when a mutation requires an online sync to Google Apps Script
+    /// but the network call failed.
+    #[error("network required: {0}")]
+    NetworkRequired(String),
 }
 
 /// Convenience alias used throughout services and repositories.
