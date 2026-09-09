@@ -110,3 +110,51 @@ pub trait NotificationSender: Send + Sync {
         payload: &ReminderNotificationPayload,
     ) -> DomainResult<()>;
 }
+
+/// Outbound port for synchronizing periodic account state with an
+/// external service (Google Apps Script). All methods are strict online:
+/// they must either propagate successfully or return an error that
+/// prevents local state mutation.
+///
+/// When the configured URL is empty, callers should skip invocation
+/// entirely (see `AccountService`). This trait's contract assumes the
+/// URL is populated.
+#[async_trait::async_trait]
+pub trait SyncPort: Send + Sync {
+    /// Notify GAS that a new periodic account was created.
+    async fn notify_account_created(
+        &self,
+        webhook_url: &str,
+        payload: &SyncAccountPayload,
+    ) -> DomainResult<()>;
+
+    /// Notify GAS that a periodic account was updated.
+    async fn notify_account_updated(
+        &self,
+        webhook_url: &str,
+        payload: &SyncAccountPayload,
+    ) -> DomainResult<()>;
+
+    /// Notify GAS that a periodic account was archived (soft-deleted).
+    async fn notify_account_archived(
+        &self,
+        webhook_url: &str,
+        account_id: &str,
+    ) -> DomainResult<()>;
+
+    /// Send a lightweight ping to verify connectivity. Used by the
+    /// "Probar" button in the Settings modal.
+    async fn ping(&self, webhook_url: &str) -> DomainResult<()>;
+}
+
+/// Serializable snapshot of a periodic account, sent to GAS during
+/// create and update events. Mirrors the fields GAS needs to evaluate
+/// reminders — mutability, notification preferences, and monthly window.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SyncAccountPayload {
+    pub id: String,
+    pub concept: String,
+    pub start_day: i64,
+    pub due_day: i64,
+    pub notify: bool,
+}
