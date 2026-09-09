@@ -152,7 +152,7 @@ pub fn update_transaction(
     id: String,
     input: TransactionInput,
 ) -> CommandResult<Transaction> {
-    state
+state
         .transactions
         .update(
             id,
@@ -182,6 +182,14 @@ pub fn get_settings(state: State<'_, AppState>) -> CommandResult<Settings> {
 #[tauri::command]
 pub fn save_settings(state: State<'_, AppState>, settings: Settings) -> CommandResult<Settings> {
     state.settings.save(settings).map_err(map_error)
+}
+
+#[tauri::command]
+pub async fn ping_sync_webhook(
+    state: State<'_, AppState>,
+    url: Option<String>,
+) -> CommandResult<()> {
+    state.reminders.ping(url).await.map_err(map_error)
 }
 
 // ---------- BCV (session state) ----------

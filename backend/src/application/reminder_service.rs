@@ -91,7 +91,7 @@ impl ReminderService {
         kind: ReminderNotificationKind,
     ) -> DomainResult<ReminderNotificationPayload> {
         let settings = self.settings.load()?;
-        if settings.gas_webhook_url.trim().is_empty() {
+        if settings.gas_reminder_webhook_url.trim().is_empty() {
             return Err(DomainError::Validation(
                 "gas_webhook_url is not configured".into(),
             ));
@@ -107,7 +107,7 @@ impl ReminderService {
             total_ves: 0.0,
         };
         self.notifier
-            .send_reminder(&settings.gas_webhook_url, &payload)
+            .send_reminder(&settings.gas_reminder_webhook_url, &payload)
             .await?;
         Ok(payload)
     }
@@ -126,7 +126,7 @@ impl ReminderService {
         let url = match url_override {
             Some(u) if !u.trim().is_empty() => u.trim().to_string(),
             _ => {
-                let stored = settings.gas_webhook_url.trim();
+                let stored = settings.gas_reminder_webhook_url.trim();
                 if stored.is_empty() {
                     return Err(DomainError::Validation(
                         "gas_webhook_url is not configured".into(),
