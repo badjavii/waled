@@ -13,8 +13,20 @@ use crate::state::AppState;
 
 type CommandResult<T> = Result<T, String>;
 
-fn map_error(error: DomainError) -> String {
-    error.to_string()
+/// Serialize a domain error into a string prefixed with its variant name.
+/// The frontend detects specific variants (like NetworkRequired) by
+/// checking the prefix. Never change existing prefixes without also
+/// updating the frontend's `parseDomainError` helper.
+fn map_error(err: DomainError) -> String {
+    match err {
+        DomainError::Validation(msg) => format!("Validation: {msg}"),
+        DomainError::NotFound(msg) => format!("NotFound: {msg}"),
+        DomainError::Persistence(msg) => format!("Persistence: {msg}"),
+        DomainError::NetworkRequired(msg) => format!("NetworkRequired: {msg}"),
+        DomainError::Conflict(msg) => format!("Conflict: {msg}"),
+        DomainError::Notification(msg) => format!("Notification: {msg}"),
+        DomainError::Unexpected(msg) => format!("Unexpected: {msg}"),
+    }
 }
 
 // ---------- Wallets ----------
@@ -81,7 +93,10 @@ pub fn list_all_accounts(state: State<'_, AppState>) -> CommandResult<Vec<Accoun
 }
 
 #[tauri::command]
-pub fn create_account(state: State<'_, AppState>, input: AccountInput) -> CommandResult<Account> {
+pub async fn create_account(
+    state: State<'_, AppState>,
+    input: AccountInput,
+) -> CommandResult<Account> {
     state
         .accounts
         .create(
@@ -93,17 +108,21 @@ pub fn create_account(state: State<'_, AppState>, input: AccountInput) -> Comman
             input.due_day,
             input.notify,
         )
+        .await
         .map_err(map_error)
 }
 
 #[tauri::command]
-pub fn update_account(state: State<'_, AppState>, account: Account) -> CommandResult<Account> {
-    state.accounts.update(account).map_err(map_error)
+pub async fn update_account(
+    state: State<'_, AppState>,
+    account: Account,
+) -> CommandResult<Account> {
+    state.accounts.update(account).await.map_err(map_error)
 }
 
 #[tauri::command]
-pub fn delete_account(state: State<'_, AppState>, id: String) -> CommandResult<()> {
-    state.accounts.archive(&id).map_err(map_error)
+pub async fn delete_account(state: State<'_, AppState>, id: String) -> CommandResult<()> {
+    state.accounts.archive(&id).await.map_err(map_error)
 }
 
 // ---------- Transactions ----------

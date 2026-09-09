@@ -10,7 +10,7 @@ use crate::application::settings_service::SettingsService;
 use crate::application::transaction_service::TransactionService;
 use crate::application::wallet_service::WalletService;
 use crate::domain::errors::DomainResult;
-use crate::domain::ports::BcvRateProvider;
+use crate::domain::ports::{BcvRateProvider, SyncPort};
 use crate::infrastructure::bcv::dolarapi_client::DolarApiClient;
 use crate::infrastructure::db::account_repository::SqliteAccountRepository;
 use crate::infrastructure::db::connection::{build_pool, SqlitePool};
@@ -18,6 +18,7 @@ use crate::infrastructure::db::settings_repository::SqliteSettingsRepository;
 use crate::infrastructure::db::transaction_repository::SqliteTransactionRepository;
 use crate::infrastructure::db::wallet_repository::SqliteWalletRepository;
 use crate::infrastructure::db::{migrations, seed};
+use crate::infrastructure::notifier::gas_sync_client::GasSyncClient;
 use crate::infrastructure::notifier::google_script_notifier::GoogleScriptNotifier;
 use crate::infrastructure::scheduler::bcv_rate_scheduler::BcvRateState;
 
@@ -51,7 +52,14 @@ impl AppState {
         let bcv_state = BcvRateState::new();
 
         let wallets = Arc::new(WalletService::new(wallet_repository.clone()));
-        let accounts = Arc::new(AccountService::new(account_repository.clone()));
+
+        let sync_client: Arc<dyn SyncPort> = Arc::new(GasSyncClient::new()?);
+
+        let accounts = Arc::new(AccountService::new(
+            account_repository.clone(),
+            settings_repository.clone(),
+            sync_client,
+        ));
         let transactions = Arc::new(TransactionService::new(
             transaction_repository.clone(),
             account_repository.clone(),
