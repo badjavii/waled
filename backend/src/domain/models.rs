@@ -104,6 +104,7 @@ pub struct Settings {
     /// with no sync side-effects. When set, sync failures block CRUD
     /// operations per spec §3.6 and §1.3 (STRICT ONLINE).
     pub gas_sync_webhook_url: String,
+    pub backups_directory: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -55,7 +55,8 @@ CREATE TABLE IF NOT EXISTS settings (
     user_name TEXT NOT NULL DEFAULT '',
     user_email TEXT NOT NULL DEFAULT '',
     gas_reminder_webhook_url TEXT NOT NULL DEFAULT '',
-    gas_sync_webhook_url TEXT NOT NULL DEFAULT ''
+    gas_sync_webhook_url TEXT NOT NULL DEFAULT '',
+    backups_directory TEXT NOT NULL DEFAULT ''
 );
 ";
 

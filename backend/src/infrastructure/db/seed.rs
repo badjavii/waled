@@ -32,8 +32,8 @@ pub fn run(pool: &SqlitePool) -> DomainResult<()> {
 
     connection
         .execute(
-            "INSERT INTO settings (id, user_name, user_email, gas_reminder_webhook_url, gas_sync_webhook_url) \
-             VALUES (1, '', '', '', '') \
+            "INSERT INTO settings (id, user_name, user_email, gas_reminder_webhook_url, gas_sync_webhook_url, backups_directory) \
+             VALUES (1, '', '', '', '', '') \
              ON CONFLICT(id) DO NOTHING",
             params![],
         )
