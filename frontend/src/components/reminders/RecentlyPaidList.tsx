@@ -16,7 +16,7 @@ export function RecentlyPaidList({ reminders }: RecentlyPaidListProps) {
 
         return (
           <div
-            key={reminder.account_id}
+            key={`${reminder.account_id}-${reminder.due_date}`}
             className="flex items-center gap-3 px-4 py-3 border-b border-border-muted last:border-b-0"
           >
             <div className="w-8 h-8 flex-shrink-0 rounded-[9px] bg-brand/10 text-brand flex items-center justify-center">

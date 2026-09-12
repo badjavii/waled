@@ -31,7 +31,7 @@ export function RemindersTable({ reminders }: RemindersTableProps) {
 
         return (
           <div
-            key={reminder.account_id}
+            key={`${reminder.account_id}-${reminder.due_date}`}
             className="grid grid-cols-[2fr_1.2fr_1.4fr_1.6fr_130px] gap-3 px-4 py-3 border-b border-border-muted items-center last:border-b-0 hover:bg-bg-row/50 transition-colors"
           >
             <div className="flex items-center gap-3 min-w-0">

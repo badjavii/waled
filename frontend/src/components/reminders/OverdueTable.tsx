@@ -29,7 +29,7 @@ export function OverdueTable({ reminders }: OverdueTableProps) {
 
         return (
           <div
-            key={reminder.account_id}
+            key={`${reminder.account_id}-${reminder.due_date}`}
             className="grid grid-cols-[2fr_1.2fr_1.4fr_140px] gap-3 px-4 py-3 border-b border-expense/15 items-center last:border-b-0"
           >
             <div className="flex items-center gap-3 min-w-0">
