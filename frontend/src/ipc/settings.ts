@@ -52,3 +52,12 @@ export async function exportDatabaseToFile(
   await invoke("export_database", { destination });
   return destination;
 }
+
+/**
+ * Trigger a full wipe of the local database. The backend validates that
+ * `userNameConfirmation` matches the stored user_name and that a
+ * backups_directory is configured. Creates a pre-wipe backup and
+ * returns the path to that backup file.
+ */
+export const wipeDatabase = (userNameConfirmation: string): Promise<string> =>
+  invoke("wipe_database", { userNameConfirmation });

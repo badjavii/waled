@@ -20,6 +20,9 @@ import {
   } from "@/ipc/settings";
 import { pingReminderWebhook } from "@/ipc/reminders";
 import type { Settings } from "@/ipc/types";
+import { wipeDatabase } from "@/ipc/settings";
+import { WipeConfirmModal } from "@/components/ui/WipeConfirmModal";
+import { Trash2 } from "lucide-react";
 
 interface SettingsModalProps {
   open: boolean;
@@ -38,6 +41,7 @@ const EMPTY_SETTINGS: Settings = {
 export function SettingsModal({ open, onClose }: SettingsModalProps) {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<TabType>("profile");
+  const [wipeConfirmOpen, setWipeConfirmOpen] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ["settings"],
@@ -63,86 +67,127 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
     },
   });
 
+  const wipeMutation = useMutation({
+    mutationFn: () => wipeDatabase(form.user_name),
+    onSuccess: (backupPath) => {
+      // Invalidate everything the wipe affected.
+      queryClient.invalidateQueries({ queryKey: ["settings"] });
+      queryClient.invalidateQueries({ queryKey: ["wallets"] });
+      queryClient.invalidateQueries({ queryKey: ["accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["reminders"] });
+      // Reset the local form so the Profile tab reflects the wiped state.
+      setForm(EMPTY_SETTINGS);
+      // Close the wipe modal and switch to Profile so the user reconfigures.
+      setWipeConfirmOpen(false);
+      setActiveTab("profile");
+      toast.success("Aplicación restablecida", {
+        description: `Respaldo guardado en: ${backupPath}`,
+        duration: 8000,
+      });
+    },
+    onError: (err: unknown) => {
+      toast.error("No se pudo restablecer la aplicación", {
+        description: String(err),
+      });
+    },
+  });
+
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     saveMutation.mutate(form);
   };
 
   return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      title="Configuración"
-      subtitle="Opciones de cuenta, sincronización y datos"
-    >
-      {isLoading ? (
-        <div className="text-text-muted text-sm py-6 text-center">
-          Cargando configuración…
-        </div>
-      ) : (
-        <form onSubmit={handleSubmit}>
-          {/* Navegación por pestañas */}
-          <div className="flex border-b border-border-muted mb-5 gap-1">
-            <TabButton
-              active={activeTab === "profile"}
-              onClick={() => setActiveTab("profile")}
-              icon={<User size={14} />}
-              label="Perfil"
-            />
-            <TabButton
-              active={activeTab === "webhooks"}
-              onClick={() => setActiveTab("webhooks")}
-              icon={<Webhook size={14} />}
-              label="Webhooks"
-            />
-            <TabButton
-              active={activeTab === "backups"}
-              onClick={() => setActiveTab("backups")}
-              icon={<HardDrive size={14} />}
-              label="Respaldos"
-            />
-            <TabButton
-              active={activeTab === "danger"}
-              onClick={() => setActiveTab("danger")}
-              icon={<AlertTriangle size={14} />}
-              label="Zona de Peligro"
-            />
+    <>
+      <Modal
+        open={open}
+        onClose={onClose}
+        title="Configuración"
+        subtitle="Opciones de cuenta, sincronización y datos"
+      >
+        {isLoading ? (
+          <div className="text-text-muted text-sm py-6 text-center">
+            Cargando configuración…
           </div>
+        ) : (
+          <form onSubmit={handleSubmit}>
+            {/* Navegación por pestañas */}
+            <div className="flex border-b border-border-muted mb-5 gap-1">
+              <TabButton
+                active={activeTab === "profile"}
+                onClick={() => setActiveTab("profile")}
+                icon={<User size={14} />}
+                label="Perfil"
+              />
+              <TabButton
+                active={activeTab === "webhooks"}
+                onClick={() => setActiveTab("webhooks")}
+                icon={<Webhook size={14} />}
+                label="Webhooks"
+              />
+              <TabButton
+                active={activeTab === "backups"}
+                onClick={() => setActiveTab("backups")}
+                icon={<HardDrive size={14} />}
+                label="Respaldos"
+              />
+              <TabButton
+                active={activeTab === "danger"}
+                onClick={() => setActiveTab("danger")}
+                icon={<AlertTriangle size={14} />}
+                label="Zona de Peligro"
+              />
+            </div>
 
-          {/* Contenido según pestaña activa */}
-          <div className="min-h-[220px]">
-            {activeTab === "profile" && (
-              <ProfileTab form={form} setForm={setForm} />
-            )}
-            {activeTab === "webhooks" && (
-              <WebhooksTab form={form} setForm={setForm} />
-            )}
-            {activeTab === "backups" && <BackupsTab />}
-            {activeTab === "danger" && <DangerTab />}
-          </div>
+            {/* Contenido según pestaña activa */}
+            <div className="min-h-[220px]">
+              {activeTab === "profile" && (
+                <ProfileTab form={form} setForm={setForm} />
+              )}
+              {activeTab === "webhooks" && (
+                <WebhooksTab form={form} setForm={setForm} />
+              )}
+              {activeTab === "backups" && <BackupsTab />}
+              {activeTab === "danger" && (
+                <DangerTab
+                  currentUserName={form.user_name}
+                  onOpenWipe={() => setWipeConfirmOpen(true)}
+                />
+              )}
+            </div>
 
-          {/* Botones de acción inferiores */}
-          <div className="flex gap-3 mt-6 border-t border-border-muted pt-4">
-            <div className="flex-1" />
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={saveMutation.isPending}
-              className="bg-[#151c25] border border-border-strong text-text-main font-semibold text-sm px-5 py-2.5 rounded-[11px] hover:bg-bg-row transition-colors disabled:opacity-50"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={saveMutation.isPending}
-              className="bg-brand text-[#05130d] font-bold text-sm px-6 py-2.5 rounded-[11px] shadow-lg shadow-brand/25 hover:brightness-110 transition-all disabled:opacity-50"
-            >
-              {saveMutation.isPending ? "Guardando…" : "Guardar cambios"}
-            </button>
-          </div>
-        </form>
-      )}
-    </Modal>
+            {/* Botones de acción inferiores */}
+            <div className="flex gap-3 mt-6 border-t border-border-muted pt-4">
+              <div className="flex-1" />
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={saveMutation.isPending}
+                className="bg-[#151c25] border border-border-strong text-text-main font-semibold text-sm px-5 py-2.5 rounded-[11px] hover:bg-bg-row transition-colors disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={saveMutation.isPending}
+                className="bg-brand text-[#05130d] font-bold text-sm px-6 py-2.5 rounded-[11px] shadow-lg shadow-brand/25 hover:brightness-110 transition-all disabled:opacity-50"
+              >
+                {saveMutation.isPending ? "Guardando…" : "Guardar cambios"}
+              </button>
+            </div>
+          </form>
+        )}
+      </Modal>
+
+      <WipeConfirmModal
+        open={wipeConfirmOpen}
+        onClose={() => setWipeConfirmOpen(false)}
+        onConfirm={() => wipeMutation.mutate()}
+        expectedName={form.user_name}
+        wiping={wipeMutation.isPending}
+      />
+    </>
   );
 }
 
@@ -374,13 +419,51 @@ function BackupsTab() {
   );
 }
 
-function DangerTab() {
+function DangerTab({
+  currentUserName,
+  onOpenWipe,
+}: {
+  currentUserName: string;
+  onOpenWipe: () => void;
+}) {
+  const backupsConfigured = currentUserName.trim().length > 0; // será refinado con backupsDirectory abajo
+
   return (
     <div className="flex flex-col gap-4">
-      <ComingSoonBanner
-        title="Limpieza total de datos"
-        message="En la próxima entrega podrás borrar todo el historial y reiniciar la base de datos de forma segura."
-      />
+      <div className="bg-expense/[0.04] border border-expense/25 rounded-[10px] px-4 py-3">
+        <div className="flex items-start gap-3">
+          <div className="w-9 h-9 rounded-[10px] bg-expense/12 text-expense flex items-center justify-center flex-shrink-0">
+            <AlertTriangle size={16} strokeWidth={2} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-[13px] font-bold text-expense mb-1">
+              Restablecer aplicación
+            </div>
+            <p className="text-[11.5px] text-text-secondary leading-relaxed">
+              Borra permanentemente todas tus billeteras, cuentas, transacciones
+              y perfil. Se generará un respaldo automático en{" "}
+              <code className="text-text-secondary bg-bg-main/60 px-1 rounded">
+                wipe_backups/
+              </code>{" "}
+              antes de proceder.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onOpenWipe}
+            className="flex items-center gap-1.5 bg-expense text-white font-bold text-[12.5px] px-3.5 py-2 rounded-[10px] hover:brightness-110 transition-all whitespace-nowrap self-start"
+          >
+            <Trash2 size={13} />
+            Restablecer
+          </button>
+        </div>
+      </div>
+
+      <p className="text-[11px] text-text-muted leading-relaxed">
+        Necesitarás escribir tu nombre exacto para confirmar. Si no tienes una
+        carpeta de respaldos configurada, ve a la pestaña <b>Respaldos</b> antes
+        de restablecer.
+      </p>
     </div>
   );
 }
