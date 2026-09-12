@@ -110,6 +110,19 @@ impl SyncPort for GasSyncClient {
         self.dispatch(webhook_url, "archive_account", &payload).await
     }
 
+    async fn notify_payment_marked(
+        &self,
+        webhook_url: &str,
+        account_id: &str,
+        month: &str,
+    ) -> DomainResult<()> {
+        let payload = serde_json::json!({
+            "account_id": account_id,
+            "month": month,
+        });
+        self.dispatch(webhook_url, "mark_paid", &payload).await
+    }
+
     async fn ping(&self, webhook_url: &str) -> DomainResult<()> {
         let payload = json!({});
         self.dispatch(webhook_url, "ping", &payload).await
