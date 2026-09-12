@@ -145,6 +145,16 @@ pub trait SyncPort: Send + Sync {
     /// Send a lightweight ping to verify connectivity. Used by the
     /// "Probar" button in the Settings modal.
     async fn ping(&self, webhook_url: &str) -> DomainResult<()>;
+
+    /// Notify GAS that a periodic account has been paid within the
+    /// current calendar month. Suspends further reminder emails for
+    /// that account until the next month's reset.
+    async fn notify_payment_marked(
+        &self,
+        webhook_url: &str,
+        account_id: &str,
+        month: &str,
+    ) -> DomainResult<()>;
 }
 
 /// Serializable snapshot of a periodic account, sent to GAS during
