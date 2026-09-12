@@ -58,12 +58,14 @@ impl AppState {
         let accounts = Arc::new(AccountService::new(
             account_repository.clone(),
             settings_repository.clone(),
-            sync_client,
+            sync_client.clone(),
         ));
         let transactions = Arc::new(TransactionService::new(
             transaction_repository.clone(),
             account_repository.clone(),
             wallet_repository.clone(),
+            settings_repository.clone(),
+            sync_client.clone(),
         ));
         let settings = Arc::new(SettingsService::new(settings_repository.clone()));
         let reminders = Arc::new(ReminderService::new(
