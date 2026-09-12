@@ -167,4 +167,12 @@ impl WalletRepository for SqliteWalletRepository {
             )
             .map_err(persist_err)
     }
+
+    fn wipe_all_rows(&self) -> DomainResult<()> {
+        let connection = self.pool.get().map_err(persist_err)?;
+        connection
+            .execute("DELETE FROM wallets", [])
+            .map_err(persist_err)?;
+        Ok(())
+    }
 }

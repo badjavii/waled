@@ -22,6 +22,9 @@ pub trait WalletRepository: Send + Sync {
     /// Soft-delete: sets `archived_at` to now. The row is preserved.
     fn archive(&self, id: &str) -> DomainResult<()>;
     fn count(&self) -> DomainResult<i64>;
+    /// Delete all wallets permanently. Used exclusively by the wipe
+    /// operation. Do NOT call outside a wipe transaction.
+    fn wipe_all_rows(&self) -> DomainResult<()>;
 }
 
 /// Persistence port for accounts.
@@ -41,6 +44,9 @@ pub trait AccountRepository: Send + Sync {
     /// Soft-delete: sets `archived_at` to now. The row is preserved.
     fn archive(&self, id: &str) -> DomainResult<()>;
     fn count(&self) -> DomainResult<i64>;
+    /// Delete all accounts permanently. Used exclusively by the wipe
+    /// operation. Do NOT call outside a wipe transaction.
+    fn wipe_all_rows(&self) -> DomainResult<()>;
 }
 
 /// Persistence port for transactions.
@@ -53,6 +59,9 @@ pub trait TransactionRepository: Send + Sync {
     fn create(&self, transaction: &Transaction) -> DomainResult<()>;
     fn update(&self, transaction: &Transaction) -> DomainResult<()>;
     fn delete(&self, id: &str) -> DomainResult<()>;
+    /// Delete all transactions permanently. Used exclusively by the
+    /// wipe operation. Do NOT call outside a wipe transaction.
+    fn wipe_all_rows(&self) -> DomainResult<()>;
 }
 
 /// Persistence port for the single-row settings record.

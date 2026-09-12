@@ -203,4 +203,12 @@ impl AccountRepository for SqliteAccountRepository {
             )
             .map_err(persist_err)
     }
+
+    fn wipe_all_rows(&self) -> DomainResult<()> {
+        let connection = self.pool.get().map_err(persist_err)?;
+        connection
+            .execute("DELETE FROM accounts", [])
+            .map_err(persist_err)?;
+        Ok(())
+    }
 }

@@ -208,4 +208,12 @@ impl TransactionRepository for SqliteTransactionRepository {
         }
         Ok(())
     }
+
+    fn wipe_all_rows(&self) -> DomainResult<()> {
+        let connection = self.pool.get().map_err(persist_err)?;
+        connection
+            .execute("DELETE FROM transactions", [])
+            .map_err(persist_err)?;
+        Ok(())
+    }
 }
