@@ -306,4 +306,18 @@ pub fn configure_backups_directory(
     settings.backups_directory = path.to_string_lossy().to_string();
     state.settings.save(settings).map_err(map_error)?;
     state.settings.load().map_err(map_error)
-    }
+}
+
+// ---------- Wipe ----------
+
+#[tauri::command]
+pub async fn wipe_database(
+    state: State<'_, AppState>,
+    user_name_confirmation: String,
+) -> CommandResult<PathBuf> {
+    let current_rate = state.bcv_state.get().await;
+    state
+        .wipe
+        .wipe_all(&user_name_confirmation, current_rate)
+        .map_err(map_error)
+}

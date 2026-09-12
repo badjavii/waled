@@ -21,6 +21,7 @@ use crate::infrastructure::db::{migrations, seed};
 use crate::infrastructure::notifier::gas_sync_client::GasSyncClient;
 use crate::infrastructure::notifier::google_script_notifier::GoogleScriptNotifier;
 use crate::infrastructure::scheduler::bcv_rate_scheduler::BcvRateState;
+use crate::application::wipe_service::WipeService;
 
 /// Bag of services shared with every Tauri command via `State<AppState>`.
 #[derive(Clone)]
@@ -34,6 +35,7 @@ pub struct AppState {
     pub bcv_state: BcvRateState,
     pub bcv_provider: Arc<dyn BcvRateProvider>,
     pub pool: SqlitePool,
+    pub wipe: Arc<WipeService>,
 }
 
 impl AppState {
@@ -75,10 +77,18 @@ impl AppState {
             notifier,
         ));
         let exporter = Arc::new(ExportService::new(
-            settings_repository,
-            wallet_repository,
-            account_repository,
-            transaction_repository,
+            settings_repository.clone(),
+            wallet_repository.clone(),
+            account_repository.clone(),
+            transaction_repository.clone(),
+        ));
+            let wipe = Arc::new(WipeService::new(
+            pool.clone(),
+            exporter.clone(),
+            settings_repository.clone(),
+            wallet_repository.clone(),
+            account_repository.clone(),
+            transaction_repository.clone(),
         ));
 
         Ok(Self {
@@ -91,6 +101,7 @@ impl AppState {
             bcv_state,
             bcv_provider,
             pool,
+            wipe,
         })
     }
 }
