@@ -147,7 +147,7 @@ pub fn list_transactions(state: State<'_, AppState>) -> CommandResult<Vec<Transa
 }
 
 #[tauri::command]
-pub fn create_transaction(
+pub async fn create_transaction(
     state: State<'_, AppState>,
     input: TransactionInput,
 ) -> CommandResult<Transaction> {
@@ -162,6 +162,7 @@ pub fn create_transaction(
             input.payment_reference,
             input.bcv_rate_at_payment,
         )
+        .await
         .map_err(map_error)
 }
 
@@ -171,18 +172,23 @@ pub fn update_transaction(
     id: String,
     input: TransactionInput,
 ) -> CommandResult<Transaction> {
-state
+    // Read the existing record to preserve `created_at` (audit field
+    // that should never be mutated by user edits).
+    let existing = state.transactions.get(&id).map_err(map_error)?;
+    let transaction = Transaction {
+        id: existing.id,
+        account_id: input.account_id,
+        wallet_id: input.wallet_id,
+        ves_amount: input.ves_amount,
+        payment_date: input.payment_date,
+        created_at: existing.created_at,
+        description: input.description,
+        payment_reference: input.payment_reference,
+        bcv_rate_at_payment: input.bcv_rate_at_payment,
+    };
+    state
         .transactions
-        .update(
-            id,
-            input.account_id,
-            input.wallet_id,
-            input.ves_amount,
-            input.payment_date,
-            input.description,
-            input.payment_reference,
-            input.bcv_rate_at_payment,
-        )
+        .update(transaction)
         .map_err(map_error)
 }
 
