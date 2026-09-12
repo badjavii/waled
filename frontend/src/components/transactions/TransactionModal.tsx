@@ -6,6 +6,8 @@ import { Toggle } from "@/components/ui/Toggle";
 import { Select } from "@/components/ui/Select";
 import { createTransaction, updateTransaction, type TransactionInput } from "@/ipc/transactions";
 import type { Account, BcvRate, Transaction, Wallet } from "@/ipc/types";
+import { parseDomainError } from "@/lib/errors";
+import { NetworkRequiredModal } from "@/components/ui/NetworkRequiredModal";
 import { formatBs, formatUsd, toIsoDate } from "@/lib/format";
 
 interface TransactionModalProps {
@@ -52,6 +54,7 @@ export function TransactionModal({
 
   const [form, setForm] = useState<FormState>(defaultState);
   const [touched, setTouched] = useState(false);
+  const [networkError, setNetworkError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -71,9 +74,6 @@ export function TransactionModal({
       setForm(defaultState);
     }
   }, [open, editing, defaultState]);
-
-  const selectedWallet = wallets.find((w) => w.id === form.wallet_id);
-  const isDigitalWallet = selectedWallet?.is_digital ?? false;
 
   const parsedAmount = parseSpanishNumber(form.ves_amount_input);
   const parsedManualRate = parseSpanishNumber(form.manual_rate_input);
@@ -111,9 +111,7 @@ export function TransactionModal({
         ves_amount: parsedAmount,
         payment_date: form.payment_date,
         description: form.description.trim(),
-        payment_reference: isDigitalWallet
-          ? form.payment_reference.trim() || null
-          : null,
+        payment_reference: form.payment_reference.trim() || null,
         bcv_rate_at_payment: rateToApply,
       };
       if (isEditing && editing) {
@@ -132,11 +130,16 @@ export function TransactionModal({
       onClose();
     },
     onError: (error: unknown) => {
+      const parsed = parseDomainError(error);
+      if (parsed.kind === "NetworkRequired") {
+        setNetworkError(parsed.message);
+        return;
+      }
       toast.error(
-        isEditing
+        editing
           ? "No se pudo actualizar la transacción"
-          : "No se pudo registrar la transacción",
-        { description: String(error) }
+          : "No se pudo crear la transacción",
+        { description: parsed.message }
       );
     },
   });
@@ -151,95 +154,94 @@ export function TransactionModal({
   const error = touched ? validate() : null;
   const canUseAuto = currentBcvRate !== null && !isEditing;
 
-  // Wallet change: if new wallet is not digital, clear the reference.
+  // Wallet change: preserve the reference regardless of wallet type.
+  // v0.2.0 makes payment_reference fully optional for all wallets.
   const handleWalletChange = (nextId: string) => {
-    const next = wallets.find((w) => w.id === nextId);
     setForm((current) => ({
       ...current,
       wallet_id: nextId,
-      payment_reference: next?.is_digital ? current.payment_reference : "",
     }));
   };
 
   return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      title={isEditing ? "Editar transacción" : "Nueva transacción"}
-      subtitle={
-        isEditing
-          ? "La tasa BCV registrada no se modifica al editar."
-          : "El monto se guarda en bolívares. La tasa BCV se congela al registrar."
-      }
-      widthClass="w-[600px]"
-    >
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <div className="grid grid-cols-2 gap-4">
-          <Field label="Cuenta">
-            <Select<string>
-              value={form.account_id}
-              onChange={(next) => setForm({ ...form, account_id: next })}
-              options={accounts.map((a) => ({ value: a.id, label: a.name }))}
-              ariaLabel="Cuenta"
-            />
-          </Field>
-
-          <Field label="Billetera">
-            <Select<string>
-              value={form.wallet_id}
-              onChange={handleWalletChange}
-              options={wallets.map((w) => ({
-                value: w.id,
-                label: `${w.name} (${w.is_digital ? "digital" : "efectivo"})`,
-              }))}
-              ariaLabel="Billetera"
-            />
-          </Field>
-
-          <Field label="Monto en bolívares">
-            <div className="flex items-center bg-bg-main border border-[#2a3441] rounded-[10px] px-3 focus-within:border-brand transition-colors">
-              <span className="font-mono text-[15px] text-text-muted font-semibold">Bs</span>
-              <input
-                inputMode="decimal"
-                value={form.ves_amount_input}
-                onChange={(event) =>
-                  setForm({ ...form, ves_amount_input: event.target.value })
-                }
-                placeholder="0,00"
-                className="flex-1 bg-transparent border-none py-2.5 px-2 text-base font-bold text-text-main font-mono outline-none"
-                autoFocus
+    <>
+      <Modal
+        open={open}
+        onClose={onClose}
+        title={isEditing ? "Editar transacción" : "Nueva transacción"}
+        subtitle={
+          isEditing
+            ? "La tasa BCV registrada no se modifica al editar."
+            : "El monto se guarda en bolívares. La tasa BCV se congela al registrar."
+        }
+        widthClass="w-[600px]"
+      >
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Cuenta">
+              <Select<string>
+                value={form.account_id}
+                onChange={(next) => setForm({ ...form, account_id: next })}
+                options={accounts.map((a) => ({ value: a.id, label: a.name }))}
+                ariaLabel="Cuenta"
               />
-            </div>
-          </Field>
+            </Field>
 
-          <Field label="Fecha de pago">
+            <Field label="Billetera">
+              <Select<string>
+                value={form.wallet_id}
+                onChange={handleWalletChange}
+                options={wallets.map((w) => ({
+                  value: w.id,
+                  label: `${w.name} (${w.is_digital ? "digital" : "efectivo"})`,
+                }))}
+                ariaLabel="Billetera"
+              />
+            </Field>
+
+            <Field label="Monto en bolívares">
+              <div className="flex items-center bg-bg-main border border-[#2a3441] rounded-[10px] px-3 focus-within:border-brand transition-colors">
+                <span className="font-mono text-[15px] text-text-muted font-semibold">Bs</span>
+                <input
+                  inputMode="decimal"
+                  value={form.ves_amount_input}
+                  onChange={(event) =>
+                    setForm({ ...form, ves_amount_input: event.target.value })
+                  }
+                  placeholder="0,00"
+                  className="flex-1 bg-transparent border-none py-2.5 px-2 text-base font-bold text-text-main font-mono outline-none"
+                  autoFocus
+                />
+              </div>
+            </Field>
+
+            <Field label="Fecha de pago">
+              <input
+                type="date"
+                value={form.payment_date}
+                onChange={(event) =>
+                  setForm({ ...form, payment_date: event.target.value })
+                }
+                className="input font-mono"
+              />
+            </Field>
+          </div>
+
+          <Field label="Descripción" hint="Opcional. Ayuda a identificar el gasto.">
             <input
-              type="date"
-              value={form.payment_date}
+              value={form.description}
               onChange={(event) =>
-                setForm({ ...form, payment_date: event.target.value })
+                setForm({ ...form, description: event.target.value })
               }
-              className="input font-mono"
+              placeholder="Recibo del mes de agosto"
+              className="input"
+              maxLength={200}
             />
           </Field>
-        </div>
 
-        <Field label="Descripción" hint="Opcional. Ayuda a identificar el gasto.">
-          <input
-            value={form.description}
-            onChange={(event) =>
-              setForm({ ...form, description: event.target.value })
-            }
-            placeholder="Recibo del mes de agosto"
-            className="input"
-            maxLength={200}
-          />
-        </Field>
-
-        {isDigitalWallet && (
           <Field
             label="Referencia de pago"
-            hint="Nº de referencia o confirmación del pago digital. Opcional."
+            hint="Nº de referencia, recibo o confirmación. Opcional para cualquier billetera."
           >
             <input
               value={form.payment_reference}
@@ -251,92 +253,108 @@ export function TransactionModal({
               maxLength={64}
             />
           </Field>
-        )}
 
-        <div className="flex flex-col gap-3 pt-3 border-t border-border-muted">
-          <Toggle
-            checked={form.auto_rate}
-            onChange={(next) =>
-              setForm((current) => ({
-                ...current,
-                auto_rate: next,
-                manual_rate_input: next && currentBcvRate
-                  ? String(currentBcvRate.rate)
-                  : current.manual_rate_input,
-              }))
-            }
-            label="Tasa BCV automática"
-            hint={
-              isEditing
-                ? "Al editar, la tasa registrada no cambia."
-                : canUseAuto
-                  ? `Usa la tasa en memoria: Bs ${formatBs(currentBcvRate!.rate)}.`
-                  : "Sin conexión con DolarApi. Activa el modo manual para continuar."
-            }
-            disabled={isEditing || !canUseAuto}
-          />
+          <div className="flex flex-col gap-3 pt-3 border-t border-border-muted">
+            <Toggle
+              checked={form.auto_rate}
+              onChange={(next) =>
+                setForm((current) => ({
+                  ...current,
+                  auto_rate: next,
+                  manual_rate_input: next && currentBcvRate
+                    ? String(currentBcvRate.rate)
+                    : current.manual_rate_input,
+                }))
+              }
+              label="Tasa BCV automática"
+              hint={
+                isEditing
+                  ? "Al editar, la tasa registrada no cambia."
+                  : canUseAuto
+                    ? `Usa la tasa en memoria: Bs ${formatBs(currentBcvRate!.rate)}.`
+                    : "Sin conexión con DolarApi. Activa el modo manual para continuar."
+              }
+              disabled={isEditing || !canUseAuto}
+            />
 
-          {(!form.auto_rate || isEditing) && (
-            <div className="pl-[50px]">
-              <label className="block">
-                <span className="block text-[11.5px] font-bold text-text-secondary mb-1.5">
-                  Tasa manual (Bs por 1 USD)
-                </span>
-                <div className="flex items-center bg-bg-main border border-[#2a3441] rounded-[10px] px-3 focus-within:border-brand transition-colors max-w-[220px]">
-                  <span className="font-mono text-[15px] text-text-muted font-semibold">Bs</span>
-                  <input
-                    inputMode="decimal"
-                    value={form.manual_rate_input}
-                    onChange={(event) =>
-                      setForm({ ...form, manual_rate_input: event.target.value })
-                    }
-                    disabled={isEditing}
-                    placeholder="138,42"
-                    className="flex-1 bg-transparent border-none py-2.5 px-2 text-base font-bold text-text-main font-mono outline-none disabled:opacity-70"
-                  />
-                </div>
-              </label>
-            </div>
-          )}
-        </div>
+            {(!form.auto_rate || isEditing) && (
+              <div className="pl-[50px]">
+                <label className="block">
+                  <span className="block text-[11.5px] font-bold text-text-secondary mb-1.5">
+                    Tasa manual (Bs por 1 USD)
+                  </span>
+                  <div className="flex items-center bg-bg-main border border-[#2a3441] rounded-[10px] px-3 focus-within:border-brand transition-colors max-w-[220px]">
+                    <span className="font-mono text-[15px] text-text-muted font-semibold">Bs</span>
+                    <input
+                      inputMode="decimal"
+                      value={form.manual_rate_input}
+                      onChange={(event) =>
+                        setForm({ ...form, manual_rate_input: event.target.value })
+                      }
+                      disabled={isEditing}
+                      placeholder="138,42"
+                      className="flex-1 bg-transparent border-none py-2.5 px-2 text-base font-bold text-text-main font-mono outline-none disabled:opacity-70"
+                    />
+                  </div>
+                </label>
+              </div>
+            )}
+          </div>
 
-        <div className="flex items-center justify-between bg-bg-row border border-border-base rounded-[11px] px-4 py-3">
-          <span className="text-[12.5px] text-text-secondary font-semibold">
+          <div className="flex items-center justify-between bg-bg-row border border-border-base rounded-[11px] px-4 py-3">
+            <span className="text-[12.5px] text-text-secondary font-semibold">
             Equivale a (tasa Bs {effectiveRate > 0 ? formatBs(effectiveRate) : "—"})
-          </span>
-          <span className="font-mono text-[19px] font-bold text-expense">
+            </span>
+            <span className="font-mono text-[19px] font-bold text-expense">
             {usdPreview !== null ? `$${formatUsd(usdPreview)} USD` : "—"}
-          </span>
-        </div>
+            </span>
+          </div>
 
-        {error && (
-          <div className="text-[11.5px] text-expense">{error}</div>
-        )}
+          {error && (
+            <div className="text-[11.5px] text-expense">{error}</div>
+          )}
 
-        <div className="flex gap-3 mt-2">
-          <div className="flex-1" />
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={mutation.isPending}
-            className="bg-[#151c25] border border-border-strong text-text-main font-semibold text-sm px-5 py-2.5 rounded-[11px] hover:bg-bg-row transition-colors disabled:opacity-50"
-          >
-            Cancelar
-          </button>
-          <button
-            type="submit"
-            disabled={mutation.isPending}
-            className="bg-brand text-[#05130d] font-bold text-sm px-6 py-2.5 rounded-[11px] shadow-lg shadow-brand/25 hover:brightness-110 transition-all disabled:opacity-50"
-          >
-            {mutation.isPending
-              ? "Guardando…"
-              : isEditing
-                ? "Actualizar"
-                : "Guardar"}
-          </button>
-        </div>
-      </form>
-    </Modal>
+          <div className="flex gap-3 mt-2">
+            <div className="flex-1" />
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={mutation.isPending}
+              className="bg-[#151c25] border border-border-strong text-text-main font-semibold text-sm px-5 py-2.5 rounded-[11px] hover:bg-bg-row transition-colors disabled:opacity-50"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={mutation.isPending}
+              className="bg-brand text-[#05130d] font-bold text-sm px-6 py-2.5 rounded-[11px] shadow-lg shadow-brand/25 hover:brightness-110 transition-all disabled:opacity-50"
+            >
+              {mutation.isPending
+                ? "Guardando…"
+                : isEditing
+                  ? "Actualizar"
+                  : "Guardar"}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      <NetworkRequiredModal
+        open={networkError !== null}
+        onClose={() => setNetworkError(null)}
+        onRetry={() => {
+          setNetworkError(null);
+          mutation.mutate();
+        }}
+        operationLabel={
+          editing
+            ? "para actualizar esta transacción"
+            : "para registrar este pago"
+        }
+        detail={networkError ?? undefined}
+        retrying={mutation.isPending}
+      />
+    </>
   );
 }
 

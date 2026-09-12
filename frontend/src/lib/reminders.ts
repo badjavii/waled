@@ -50,22 +50,24 @@ export interface PartitionedReminders {
 }
 
 /**
- * Partition reminders into three mutually exclusive sections:
+ * Partition reminders into three mutually exclusive sections.
  *
- *   - **overdue**: cycle at `due_date` is unpaid and `due_date < today`.
- *   - **upcoming**: cycle is unpaid, `due_date >= today`, and falls within
- *     the next `upcomingWindowDays`.
- *   - **recentlyPaid**: account was paid in the current month and the
- *     latest payment (`paid_at`) is within the last `recentlyPaidDays` days.
+ * The backend has already filtered which reminders to emit (current
+ * cycle always, next cycle only if its start_date is within the upcoming
+ * window). This function just classifies each one by its state:
  *
- * A reminder that doesn't match any category (paid but older than the
- * recently-paid window, or with a due date beyond the upcoming window)
- * is intentionally omitted to keep the screen focused on actionable state.
+ *   - **overdue**: due_date < today and not paid.
+ *   - **recentlyPaid**: paid within the last `recentlyPaidDays` days.
+ *   - **upcoming**: everything else (not paid, or paid but out of the
+ *     recentlyPaid window; typically future due dates).
+ *
+ * A single account may appear in two sections at once (e.g. current cycle
+ * in recentlyPaid + next cycle in upcoming). Callers must use a unique
+ * key like `account_id + due_date` when rendering.
  */
 export function partitionReminders(
   reminders: Reminder[],
   today = new Date(),
-  upcomingWindowDays = 30,
   recentlyPaidDays = 3,
 ): PartitionedReminders {
   const upcoming: Reminder[] = [];
@@ -73,29 +75,25 @@ export function partitionReminders(
   const recentlyPaid: Reminder[] = [];
 
   for (const reminder of reminders) {
+    const daysUntilDue = daysBetween(today, reminder.due_date);
+    const isPastDue = daysUntilDue < 0;
+
     if (reminder.paid_at) {
       const daysSincePayment = daysBetween(today, reminder.paid_at);
-      if (daysSincePayment >= -recentlyPaidDays && daysSincePayment <= 0) {
+      const withinRecentWindow =
+        daysSincePayment >= -recentlyPaidDays && daysSincePayment <= 0;
+      if (withinRecentWindow) {
         recentlyPaid.push(reminder);
+        continue;
       }
     }
 
-    const daysUntilDue = daysBetween(today, reminder.due_date);
-
-    if (daysUntilDue < 0 && !reminder.is_paid) {
+    if (isPastDue && !reminder.is_paid) {
       overdue.push(reminder);
+      continue;
+    }
 
-      const nextMonthDueDate = getNextMonthDueDate(reminder.due_date, reminder.due_day);
-      const daysUntilNext = daysBetween(today, nextMonthDueDate);
-
-      if (daysUntilNext >= 0 && daysUntilNext <= upcomingWindowDays) {
-        upcoming.push({
-          ...reminder,
-          due_date: nextMonthDueDate,
-        });
-      }
-    } 
-    else if (daysUntilDue >= 0 && daysUntilDue <= upcomingWindowDays) {
+    if (!reminder.is_paid) {
       upcoming.push(reminder);
     }
   }
@@ -105,22 +103,6 @@ export function partitionReminders(
   recentlyPaid.sort((a, b) => (b.paid_at ?? "").localeCompare(a.paid_at ?? ""));
 
   return { upcoming, overdue, recentlyPaid };
-}
-
-function getNextMonthDueDate(isoDate: string, dueDay: number): string {
-  const [y, m] = isoDate.split("-").map(Number);
-  let nextY = y;
-  let nextM = m + 1;
-  if (nextM > 12) {
-    nextM = 1;
-    nextY += 1;
-  }
-  const daysInNextMonth = new Date(nextY, nextM, 0).getDate();
-  const clampedDay = Math.min(dueDay, daysInNextMonth);
-
-  const mm = String(nextM).padStart(2, "0");
-  const dd = String(clampedDay).padStart(2, "0");
-  return `${nextY}-${mm}-${dd}`;
 }
 
 function daysBetween(from: Date, toIso: string): number {

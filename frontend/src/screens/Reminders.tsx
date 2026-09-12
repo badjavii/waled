@@ -9,7 +9,6 @@ import { RemindersTable } from "@/components/reminders/RemindersTable";
 import { OverdueTable } from "@/components/reminders/OverdueTable";
 import { RecentlyPaidList } from "@/components/reminders/RecentlyPaidList";
 
-const UPCOMING_WINDOW_DAYS = 30;
 const RECENTLY_PAID_DAYS = 3;
 
 interface RemindersScreenProps {
@@ -28,7 +27,6 @@ export function RemindersScreen({ onOpenSettings }: RemindersScreenProps) {
       partitionReminders(
         remindersQuery.data ?? [],
         new Date(),
-        UPCOMING_WINDOW_DAYS,
         RECENTLY_PAID_DAYS
       ),
     [remindersQuery.data]
