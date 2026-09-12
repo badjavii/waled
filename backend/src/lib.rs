@@ -63,6 +63,7 @@ pub fn run() {
             commands::trigger_reminder_email,
             commands::ping_reminder_webhook,
             commands::export_database,
+            commands::configure_backups_directory,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Waled application");

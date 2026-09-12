@@ -65,4 +65,46 @@ impl ExportService {
             .map_err(|err| DomainError::Persistence(err.to_string()))?;
         Ok(destination.to_path_buf())
     }
+
+    /// Ensure the `waled-backups/` subtree exists under `base_dir`.
+    /// Creates three subdirectories if missing:
+    ///   - `manual_backups/`
+    ///   - `import_backups/`
+    ///   - `wipe_backups/`
+    ///
+    /// Idempotent: calling this on an already-configured directory
+    /// simply verifies the structure and returns Ok.
+    ///
+    /// # Errors
+    ///
+    /// Returns `DomainError::Persistence` if `base_dir` doesn't exist,
+    /// isn't a directory, or the process lacks write permissions to
+    /// create the subdirectories.
+    pub fn ensure_backup_structure(base_dir: &Path) -> DomainResult<PathBuf> {
+        if !base_dir.exists() {
+            return Err(DomainError::Persistence(format!(
+                "base directory does not exist: {}",
+                base_dir.display()
+            )));
+        }
+        if !base_dir.is_dir() {
+            return Err(DomainError::Persistence(format!(
+                "path is not a directory: {}",
+                    base_dir.display()
+                )));
+            }
+
+        let root = base_dir.join("waled-backups");
+        for subdir in ["manual_backups", "import_backups", "wipe_backups"] {
+            let full = root.join(subdir);
+            std::fs::create_dir_all(&full).map_err(|err| {
+                DomainError::Persistence(format!(
+                    "failed to create {}: {}",
+                    full.display(),
+                    err
+                ))
+            })?;
+        }
+        Ok(root)
+    }
 }

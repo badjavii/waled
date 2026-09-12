@@ -10,6 +10,7 @@ use crate::domain::errors::DomainError;
 use crate::domain::models::{Account, AccountType, BcvRate, Reminder, Settings, Transaction, Wallet};
 use crate::domain::ports::ReminderNotificationKind;
 use crate::state::AppState;
+use crate::application::export_service::ExportService;
 
 type CommandResult<T> = Result<T, String>;
 
@@ -283,3 +284,26 @@ pub async fn export_database(
         .write_to_file(&destination, current_rate)
         .map_err(map_error)
 }
+
+#[tauri::command]
+pub fn configure_backups_directory(
+    state: State<'_, AppState>,
+    directory: String,
+) -> CommandResult<Settings> {
+    let path = PathBuf::from(directory.trim());
+    if path.as_os_str().is_empty() {
+        return Err(map_error(DomainError::Validation(
+            "backups directory cannot be empty".into(),
+        )));
+    }
+
+    // Create the waled-backups/ subtree. If this fails (no permissions,
+    // path doesn't exist, etc.), abort before touching settings.
+    ExportService::ensure_backup_structure(&path).map_err(map_error)?;
+
+    // Persist the choice in settings.
+    let mut settings = state.settings.load().map_err(map_error)?;
+    settings.backups_directory = path.to_string_lossy().to_string();
+    state.settings.save(settings).map_err(map_error)?;
+    state.settings.load().map_err(map_error)
+    }
