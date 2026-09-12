@@ -9,9 +9,15 @@ import {
   HardDrive,
   AlertTriangle,
   Download,
-} from "lucide-react";
+  FolderOpen,
+  } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
-import { getSettings, saveSettings, exportDatabaseToFile } from "@/ipc/settings";
+import {
+  getSettings,
+  saveSettings,
+  exportDatabaseToFile,
+  configureBackupsDirectory,
+  } from "@/ipc/settings";
 import { pingReminderWebhook } from "@/ipc/reminders";
 import type { Settings } from "@/ipc/types";
 
@@ -264,8 +270,32 @@ function WebhooksTab({
 }
 
 function BackupsTab() {
+  const queryClient = useQueryClient();
+  const settingsQuery = useQuery({
+    queryKey: ["settings"],
+    queryFn: getSettings,
+  });
+  const backupsDirectory = settingsQuery.data?.backups_directory ?? "";
+
+  const configureDirMutation = useMutation({
+    mutationFn: configureBackupsDirectory,
+    onSuccess: (updated) => {
+      if (updated) {
+        queryClient.setQueryData(["settings"], updated);
+        toast.success("Carpeta de respaldos configurada", {
+          description: updated.backups_directory,
+        });
+      }
+    },
+    onError: (err: unknown) => {
+      toast.error("No se pudo configurar la carpeta", {
+        description: String(err),
+      });
+    },
+  });
+
   const exportMutation = useMutation({
-    mutationFn: exportDatabaseToFile,
+    mutationFn: () => exportDatabaseToFile(backupsDirectory),
     onSuccess: (path) => {
       if (path) {
         toast.success("Respaldo exportado", { description: path });
@@ -280,6 +310,38 @@ function BackupsTab() {
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Configuración de carpeta base */}
+      <div className="bg-bg-row border border-border-muted rounded-[10px] px-4 py-3">
+        <div className="flex items-center justify-between gap-3 mb-2">
+          <div className="min-w-0 flex-1">
+            <div className="text-[13px] font-semibold text-text-main">
+              Carpeta de respaldos
+            </div>
+            <p className="text-[11.5px] text-text-muted mt-0.5 leading-relaxed">
+              Waled organizará todos tus respaldos (manuales, de importación
+              y de limpieza) dentro de{" "}
+              <code className="text-text-secondary bg-bg-main/60 px-1 rounded">
+                waled-backups/
+              </code>{" "}
+              en la carpeta que elijas.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => configureDirMutation.mutate()}
+            disabled={configureDirMutation.isPending}
+            className="flex items-center gap-1.5 bg-[#151c25] border border-border-strong text-text-secondary hover:text-text-main font-semibold text-[12px] px-3 py-2 rounded-[10px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
+          >
+            <FolderOpen size={13} />
+            {backupsDirectory ? "Cambiar" : "Elegir carpeta"}
+          </button>
+        </div>
+        <div className="text-[11px] font-mono text-text-muted bg-bg-main/60 border border-border-muted/60 rounded-[8px] px-3 py-2 break-all">
+          {backupsDirectory || "No configurado"}
+        </div>
+      </div>
+
+      {/* Exportar respaldo */}
       <div className="flex items-center justify-between gap-3 bg-bg-row border border-border-muted rounded-[10px] px-4 py-3">
         <div className="min-w-0 flex-1">
           <div className="text-[13px] font-semibold text-text-main">
@@ -287,8 +349,10 @@ function BackupsTab() {
           </div>
           <p className="text-[11.5px] text-text-muted mt-0.5 leading-relaxed">
             Genera un archivo JSON con todas tus billeteras, cuentas y
-            transacciones. Guárdalo donde quieras — puedes usarlo para
-            restaurar la app o migrar a otra máquina.
+            transacciones.{" "}
+            {backupsDirectory
+              ? "Se sugerirá guardar dentro de manual_backups/."
+              : "Guárdalo donde quieras."}
           </p>
         </div>
         <button
@@ -301,11 +365,6 @@ function BackupsTab() {
           {exportMutation.isPending ? "Exportando…" : "Exportar JSON"}
         </button>
       </div>
-
-      <ComingSoonBanner
-        title="Directorio automático de respaldos"
-        message="En la próxima entrega podrás elegir una carpeta donde Waled creará automáticamente respaldos manuales, de importación y de limpieza."
-      />
 
       <ComingSoonBanner
         title="Importar respaldo"

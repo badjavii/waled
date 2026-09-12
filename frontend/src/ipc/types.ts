@@ -48,6 +48,9 @@ export interface Settings {
   gas_reminder_webhook_url: string;
   /** Sync webhook for periodic account CRUD and payment marks. */
   gas_sync_webhook_url: string;
+  /** Base directory chosen by the user for all Waled backups. Empty
+   *  when not configured — the app falls back to asking every time. */
+  backups_directory: string;
 }
 
 export interface BcvRate {
