@@ -11,6 +11,11 @@ use crate::domain::ports::{
     ReminderNotificationPayload, SettingsRepository, TransactionRepository,
 };
 
+/// Days from today used to include the next cycle in the reminders list.
+/// A next-cycle reminder is emitted only when its start_date falls within
+/// this window. See spec §1.5.
+const UPCOMING_WINDOW_DAYS: i64 = 30;
+
 pub struct ReminderService {
     accounts: Arc<dyn AccountRepository>,
     transactions: Arc<dyn TransactionRepository>,
@@ -29,12 +34,22 @@ impl ReminderService {
         Self { accounts, transactions, settings, notifier }
     }
 
-    /// Compute reminders. Each reminder points to the next relevant due
-    /// date for its account, which may fall in the current or the next
-    /// calendar month depending on whether the current cycle is elapsed
-    /// or paid.
+    /// Compute reminders. For each active periodic account, this may
+    /// produce up to two reminders:
+    ///
+    ///   1. The **current cycle** (always emitted). Its due_date is the
+    ///      current month's due_day. Its state may be paid, unpaid, or
+    ///      overdue depending on transactions and today's date.
+    ///   2. The **next cycle** (only if its start_date falls within the
+    ///      upcoming window of 30 days from today). Its due_date is the
+    ///      next month's due_day. Always unpaid at this point.
+    ///
+    /// This lets a single account appear simultaneously in "Recientemente
+    /// pagados" (current cycle just paid) and "Próximos pagos" (next cycle
+    /// already inside its start window), per Entrega 4b.3 refinements.
     pub fn upcoming(&self, today: NaiveDate) -> DomainResult<Vec<Reminder>> {
         let mut reminders = Vec::new();
+        let upcoming_window = today + Duration::days(UPCOMING_WINDOW_DAYS);
 
         for account in self.accounts.list_active_periodic()? {
             let Some(start_day) = account.start_day else { continue };
@@ -43,42 +58,54 @@ impl ReminderService {
             let paid_at = self.latest_payment_in_month(&account.id, today)?;
             let paid_in_current_month = paid_at.is_some();
 
+            // Reminder 1: current cycle.
             let current_due = resolve_due_date(today, due_day);
-            let use_next_month = paid_in_current_month;
-
-            let (target_due, target_start_day, target_due_day) = if use_next_month {
-                let next_month_today = shift_to_next_month_start(today);
-                (
-                    resolve_due_date(next_month_today, due_day),
-                    start_day,
-                    due_day,
-                )
-            } else {
-                (current_due, start_day, due_day)
-            };
-
-            let cycle_is_paid = !use_next_month && paid_in_current_month;
-
-            let next_notification = compute_next_notification_for_cycle(
+            let current_next_notification = compute_next_notification_for_cycle(
                 today,
-                target_due,
-                target_start_day,
-                target_due_day,
-                cycle_is_paid,
+                current_due,
+                start_day,
+                due_day,
+                paid_in_current_month,
             );
-
             reminders.push(Reminder {
                 account_id: account.id.clone(),
                 name: account.name.clone(),
                 account_type: account.account_type,
-                start_day: target_start_day,
-                due_day: target_due_day,
-                due_date: target_due,
-                is_paid: cycle_is_paid,
+                start_day,
+                due_day,
+                due_date: current_due,
+                is_paid: paid_in_current_month,
                 paid_in_current_month,
                 paid_at,
-                next_notification,
+                next_notification: current_next_notification,
             });
+
+            // Reminder 2: next cycle, only if its start_date is already
+            // within the upcoming window from today.
+            let next_month_today = shift_to_next_month_start(today);
+            let next_start = resolve_start_date(next_month_today, start_day);
+            if next_start <= upcoming_window {
+                let next_due = resolve_due_date(next_month_today, due_day);
+                let next_next_notification = compute_next_notification_for_cycle(
+                    today,
+                    next_due,
+                    start_day,
+                    due_day,
+                    false,
+                );
+                reminders.push(Reminder {
+                    account_id: account.id.clone(),
+                    name: account.name.clone(),
+                    account_type: account.account_type,
+                    start_day,
+                    due_day,
+                    due_date: next_due,
+                    is_paid: false,
+                    paid_in_current_month: false,
+                    paid_at: None,
+                    next_notification: next_next_notification,
+                });
+            }
         }
 
         reminders.sort_by(|a, b| a.due_date.cmp(&b.due_date));
@@ -304,4 +331,10 @@ fn notification_candidates_for_cycle(
 #[allow(dead_code)]
 pub fn today_local() -> NaiveDate {
     Local::now().date_naive()
+}
+
+fn resolve_start_date(anchor: NaiveDate, start_day: i64) -> NaiveDate {
+    let month_length = days_in_month(anchor);
+    let clamped_day = (start_day as u32).min(month_length);
+    NaiveDate::from_ymd_opt(anchor.year(), anchor.month(), clamped_day).unwrap()
 }
