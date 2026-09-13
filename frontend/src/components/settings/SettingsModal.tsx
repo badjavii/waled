@@ -13,16 +13,19 @@ import {
   } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import {
-  getSettings,
-  saveSettings,
-  exportDatabaseToFile,
   configureBackupsDirectory,
-  } from "@/ipc/settings";
+  exportDatabaseToFile,
+  getSettings,
+  importDatabaseFromFile,
+  saveSettings,
+  triggerFullResync,
+  wipeDatabase,
+} from "@/ipc/settings";
+import { ImportConfirmModal } from "@/components/ui/ImportConfirmModal";
+import { RefreshCw, Upload, Trash2 } from "lucide-react";
 import { pingReminderWebhook } from "@/ipc/reminders";
 import type { Settings } from "@/ipc/types";
-import { wipeDatabase } from "@/ipc/settings";
 import { WipeConfirmModal } from "@/components/ui/WipeConfirmModal";
-import { Trash2 } from "lucide-react";
 
 interface SettingsModalProps {
   open: boolean;
@@ -69,22 +72,31 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
 
   const wipeMutation = useMutation({
     mutationFn: () => wipeDatabase(form.user_name),
-    onSuccess: (backupPath) => {
-      // Invalidate everything the wipe affected.
+
+    onSuccess: async (backupPath) => {
       queryClient.invalidateQueries({ queryKey: ["settings"] });
       queryClient.invalidateQueries({ queryKey: ["wallets"] });
       queryClient.invalidateQueries({ queryKey: ["accounts"] });
       queryClient.invalidateQueries({ queryKey: ["transactions"] });
       queryClient.invalidateQueries({ queryKey: ["reminders"] });
-      // Reset the local form so the Profile tab reflects the wiped state.
       setForm(EMPTY_SETTINGS);
-      // Close the wipe modal and switch to Profile so the user reconfigures.
       setWipeConfirmOpen(false);
       setActiveTab("profile");
       toast.success("Aplicación restablecida", {
         description: `Respaldo guardado en: ${backupPath}`,
         duration: 8000,
       });
+
+      // Best-effort full_resync so GAS reflects the empty state.
+      try {
+        await triggerFullResync();
+      } catch {
+        toast.warning("Datos locales restablecidos, sincronización con GAS falló", {
+          description:
+            "Reintenta desde Configuración → Webhooks → Sincronizar todo con GAS.",
+          duration: 10000,
+        });
+      }
     },
     onError: (err: unknown) => {
       toast.error("No se pudo restablecer la aplicación", {
@@ -245,6 +257,20 @@ function WebhooksTab({
     },
   });
 
+  const fullResyncMutation = useMutation({
+    mutationFn: triggerFullResync,
+    onSuccess: () => {
+      toast.success("Sincronización completa exitosa", {
+        description: "El webhook recibió todas tus cuentas periódicas.",
+      });
+    },
+    onError: (err: unknown) => {
+      toast.error("Falló la sincronización", {
+        description: String(err),
+      });
+    },
+  });
+
   return (
     <div className="flex flex-col gap-4">
       <Field
@@ -310,6 +336,35 @@ function WebhooksTab({
           </button>
         </div>
       </Field>
+
+      <div className="bg-bg-row border border-border-muted rounded-[10px] px-4 py-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="text-[13px] font-semibold text-text-main">
+              Sincronizar todo con GAS
+            </div>
+            <p className="text-[11.5px] text-text-muted mt-0.5 leading-relaxed">
+              Envía el estado completo de tus cuentas periódicas al webhook de
+              sincronización. Útil después de importar un respaldo o si crees
+              que GAS quedó desactualizado.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => fullResyncMutation.mutate()}
+            disabled={
+              !form.gas_sync_webhook_url.trim() || fullResyncMutation.isPending
+            }
+            className="flex items-center gap-1.5 bg-[#151c25] border border-border-strong text-text-secondary hover:text-text-main font-semibold text-[12px] px-3 py-2 rounded-[10px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
+          >
+            <RefreshCw
+              size={13}
+              className={fullResyncMutation.isPending ? "animate-spin" : ""}
+            />
+            {fullResyncMutation.isPending ? "Sincronizando…" : "Sincronizar todo"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -353,69 +408,185 @@ function BackupsTab() {
     },
   });
 
+  // Import flow: pick file → open confirmation modal → confirm → import.
+  const [pendingImportPath, setPendingImportPath] = useState<string | null>(null);
+
+  const pickImportFile = useMutation({
+    mutationFn: async () => {
+      const result = await importDatabaseFromFile();
+      // If user cancelled the picker, result is null; nothing to do.
+      // If they picked a file, we intercept BEFORE importing to show
+      // the confirmation modal. This mutation only runs the picker.
+      throw new Error("__intercepted__");
+    },
+  });
+  // NOTE: the pattern above is awkward because importDatabaseFromFile
+  // both picks and imports. We rewrite it inline instead below.
+
+  const openPicker = async () => {
+    try {
+      const { open } = await import("@tauri-apps/plugin-dialog");
+      const chosen = await open({
+        title: "Importar respaldo Waled",
+        directory: false,
+        multiple: false,
+        filters: [{ name: "JSON", extensions: ["json"] }],
+      });
+      if (chosen && typeof chosen === "string") {
+        setPendingImportPath(chosen);
+      }
+    } catch (err) {
+      toast.error("No se pudo abrir el selector de archivos", {
+        description: String(err),
+      });
+    }
+  };
+
+  const importMutation = useMutation({
+    mutationFn: async (source: string) => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      return invoke("import_database", { source }) as Promise<{
+        backup_path: string;
+        imported_wallets: number;
+        imported_accounts: number;
+        imported_transactions: number;
+      }>;
+    },
+    onSuccess: async (summary) => {
+      // Refresh everything the import affected.
+      queryClient.invalidateQueries({ queryKey: ["settings"] });
+      queryClient.invalidateQueries({ queryKey: ["wallets"] });
+      queryClient.invalidateQueries({ queryKey: ["accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["reminders"] });
+
+      toast.success("Respaldo importado", {
+        description: `${summary.imported_wallets} billeteras · ${summary.imported_accounts} cuentas · ${summary.imported_transactions} transacciones`,
+        duration: 8000,
+      });
+      setPendingImportPath(null);
+
+      // Best-effort full_resync to GAS. Silent success, warning on failure.
+      try {
+        await triggerFullResync();
+      } catch (syncErr) {
+        toast.warning("Datos locales importados, sincronización con GAS falló", {
+          description:
+            "Reintenta desde Configuración → Webhooks → Sincronizar todo con GAS.",
+          duration: 10000,
+        });
+      }
+    },
+    onError: (err: unknown) => {
+      toast.error("No se pudo importar el respaldo", {
+        description: String(err),
+      });
+      setPendingImportPath(null);
+    },
+  });
+
   return (
-    <div className="flex flex-col gap-4">
-      {/* Configuración de carpeta base */}
-      <div className="bg-bg-row border border-border-muted rounded-[10px] px-4 py-3">
-        <div className="flex items-center justify-between gap-3 mb-2">
+    <>
+      <div className="flex flex-col gap-4">
+        {/* Configuración de carpeta base */}
+        <div className="bg-bg-row border border-border-muted rounded-[10px] px-4 py-3">
+          <div className="flex items-center justify-between gap-3 mb-2">
+            <div className="min-w-0 flex-1">
+              <div className="text-[13px] font-semibold text-text-main">
+                Carpeta de respaldos
+              </div>
+              <p className="text-[11.5px] text-text-muted mt-0.5 leading-relaxed">
+                Waled organizará todos tus respaldos (manuales, de importación
+                y de limpieza) dentro de{" "}
+                <code className="text-text-secondary bg-bg-main/60 px-1 rounded">
+                  waled-backups/
+                </code>{" "}
+                en la carpeta que elijas.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => configureDirMutation.mutate()}
+              disabled={configureDirMutation.isPending}
+              className="flex items-center gap-1.5 bg-[#151c25] border border-border-strong text-text-secondary hover:text-text-main font-semibold text-[12px] px-3 py-2 rounded-[10px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
+            >
+              <FolderOpen size={13} />
+              {backupsDirectory ? "Cambiar" : "Elegir carpeta"}
+            </button>
+          </div>
+          <div className="text-[11px] font-mono text-text-muted bg-bg-main/60 border border-border-muted/60 rounded-[8px] px-3 py-2 break-all">
+            {backupsDirectory || "No configurado"}
+          </div>
+        </div>
+
+        {/* Exportar respaldo */}
+        <div className="flex items-center justify-between gap-3 bg-bg-row border border-border-muted rounded-[10px] px-4 py-3">
           <div className="min-w-0 flex-1">
             <div className="text-[13px] font-semibold text-text-main">
-              Carpeta de respaldos
+              Exportar respaldo ahora
             </div>
             <p className="text-[11.5px] text-text-muted mt-0.5 leading-relaxed">
-              Waled organizará todos tus respaldos (manuales, de importación
-              y de limpieza) dentro de{" "}
-              <code className="text-text-secondary bg-bg-main/60 px-1 rounded">
-                waled-backups/
-              </code>{" "}
-              en la carpeta que elijas.
+              Genera un archivo JSON con todas tus billeteras, cuentas y
+              transacciones.{" "}
+              {backupsDirectory
+                ? "Se sugerirá guardar dentro de manual_backups/."
+                : "Guárdalo donde quieras."}
             </p>
           </div>
           <button
             type="button"
-            onClick={() => configureDirMutation.mutate()}
-            disabled={configureDirMutation.isPending}
-            className="flex items-center gap-1.5 bg-[#151c25] border border-border-strong text-text-secondary hover:text-text-main font-semibold text-[12px] px-3 py-2 rounded-[10px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
+            onClick={() => exportMutation.mutate()}
+            disabled={exportMutation.isPending}
+            className="flex items-center gap-1.5 bg-brand text-[#05130d] font-bold text-[12.5px] px-3.5 py-2 rounded-[10px] shadow-lg shadow-brand/25 hover:brightness-110 transition-all disabled:opacity-50 whitespace-nowrap"
           >
-            <FolderOpen size={13} />
-            {backupsDirectory ? "Cambiar" : "Elegir carpeta"}
+            <Download size={13} />
+            {exportMutation.isPending ? "Exportando…" : "Exportar JSON"}
           </button>
         </div>
-        <div className="text-[11px] font-mono text-text-muted bg-bg-main/60 border border-border-muted/60 rounded-[8px] px-3 py-2 break-all">
-          {backupsDirectory || "No configurado"}
-        </div>
-      </div>
 
-      {/* Exportar respaldo */}
-      <div className="flex items-center justify-between gap-3 bg-bg-row border border-border-muted rounded-[10px] px-4 py-3">
-        <div className="min-w-0 flex-1">
-          <div className="text-[13px] font-semibold text-text-main">
-            Exportar respaldo ahora
+        {/* Importar respaldo */}
+        <div className="flex items-center justify-between gap-3 bg-bg-row border border-border-muted rounded-[10px] px-4 py-3">
+          <div className="min-w-0 flex-1">
+            <div className="text-[13px] font-semibold text-text-main">
+              Importar respaldo
+            </div>
+            <p className="text-[11.5px] text-text-muted mt-0.5 leading-relaxed">
+              Restaura la app desde un archivo JSON exportado. Se creará un
+              respaldo automático de tu estado actual antes de importar.
+              {!backupsDirectory && (
+                <>
+                  {" "}
+                  <b className="text-bcv">
+                    Configura la carpeta de respaldos antes de importar.
+                  </b>
+                </>
+              )}
+            </p>
           </div>
-          <p className="text-[11.5px] text-text-muted mt-0.5 leading-relaxed">
-            Genera un archivo JSON con todas tus billeteras, cuentas y
-            transacciones.{" "}
-            {backupsDirectory
-              ? "Se sugerirá guardar dentro de manual_backups/."
-              : "Guárdalo donde quieras."}
-          </p>
+          <button
+            type="button"
+            onClick={openPicker}
+            disabled={!backupsDirectory || importMutation.isPending}
+            className="flex items-center gap-1.5 bg-[#151c25] border border-border-strong text-text-main hover:bg-bg-row font-bold text-[12.5px] px-3.5 py-2 rounded-[10px] transition-all disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
+          >
+            <Upload size={13} />
+            {importMutation.isPending ? "Importando…" : "Elegir archivo"}
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={() => exportMutation.mutate()}
-          disabled={exportMutation.isPending}
-          className="flex items-center gap-1.5 bg-brand text-[#05130d] font-bold text-[12.5px] px-3.5 py-2 rounded-[10px] shadow-lg shadow-brand/25 hover:brightness-110 transition-all disabled:opacity-50 whitespace-nowrap"
-        >
-          <Download size={13} />
-          {exportMutation.isPending ? "Exportando…" : "Exportar JSON"}
-        </button>
       </div>
 
-      <ComingSoonBanner
-        title="Importar respaldo"
-        message="En la próxima entrega podrás restaurar la app desde un archivo JSON exportado previamente. Se generará un respaldo automático de tu estado actual antes de importar."
+      <ImportConfirmModal
+        open={pendingImportPath !== null}
+        onClose={() => setPendingImportPath(null)}
+        onConfirm={() => {
+          if (pendingImportPath) {
+            importMutation.mutate(pendingImportPath);
+          }
+        }}
+        filename={pendingImportPath ?? ""}
+        importing={importMutation.isPending}
       />
-    </div>
+    </>
   );
 }
 
