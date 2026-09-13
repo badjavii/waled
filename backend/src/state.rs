@@ -9,6 +9,8 @@ use crate::application::reminder_service::ReminderService;
 use crate::application::settings_service::SettingsService;
 use crate::application::transaction_service::TransactionService;
 use crate::application::wallet_service::WalletService;
+use crate::application::import_service::ImportService;
+use crate::application::sync_service::SyncService;
 use crate::domain::errors::DomainResult;
 use crate::domain::ports::{BcvRateProvider, SyncPort};
 use crate::infrastructure::bcv::dolarapi_client::DolarApiClient;
@@ -36,6 +38,8 @@ pub struct AppState {
     pub bcv_provider: Arc<dyn BcvRateProvider>,
     pub pool: SqlitePool,
     pub wipe: Arc<WipeService>,
+    pub importer: Arc<ImportService>,
+    pub sync: Arc<SyncService>,
 }
 
 impl AppState {
@@ -82,13 +86,27 @@ impl AppState {
             account_repository.clone(),
             transaction_repository.clone(),
         ));
-            let wipe = Arc::new(WipeService::new(
+        let wipe = Arc::new(WipeService::new(
             pool.clone(),
             exporter.clone(),
             settings_repository.clone(),
             wallet_repository.clone(),
             account_repository.clone(),
             transaction_repository.clone(),
+        ));
+        let importer = Arc::new(ImportService::new(
+            pool.clone(),
+            exporter.clone(),
+            settings_repository.clone(),
+            wallet_repository.clone(),
+            account_repository.clone(),
+            transaction_repository.clone(),
+        ));
+        let sync = Arc::new(SyncService::new(
+            settings_repository.clone(),
+            account_repository.clone(),
+            transaction_repository.clone(),
+            sync_client.clone(),
         ));
 
         Ok(Self {
@@ -102,6 +120,8 @@ impl AppState {
             bcv_provider,
             pool,
             wipe,
+            importer,
+            sync,
         })
     }
 }

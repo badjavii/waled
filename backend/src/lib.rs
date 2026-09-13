@@ -65,6 +65,8 @@ pub fn run() {
             commands::export_database,
             commands::configure_backups_directory,
             commands::wipe_database,
+            commands::import_database,
+            commands::trigger_full_resync,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Waled application");

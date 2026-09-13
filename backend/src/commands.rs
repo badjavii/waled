@@ -321,3 +321,22 @@ pub async fn wipe_database(
         .wipe_all(&user_name_confirmation, current_rate)
         .map_err(map_error)
 }
+
+// ---------- Import & Full Resync ----------
+
+#[tauri::command]
+pub async fn import_database(
+    state: State<'_, AppState>,
+    source: PathBuf,
+) -> CommandResult<crate::application::import_service::ImportSummary> {
+    let current_rate = state.bcv_state.get().await;
+    state
+        .importer
+        .import_from_file(&source, current_rate)
+        .map_err(map_error)
+}
+
+#[tauri::command]
+pub async fn trigger_full_resync(state: State<'_, AppState>) -> CommandResult<()> {
+    state.sync.full_resync().await.map_err(map_error)
+}
