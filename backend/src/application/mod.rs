@@ -7,3 +7,5 @@ pub mod settings_service;
 pub mod transaction_service;
 pub mod wallet_service;
 pub mod wipe_service;
+pub mod import_service;
+pub mod sync_service;
