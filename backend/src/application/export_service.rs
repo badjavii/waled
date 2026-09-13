@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use chrono::Utc;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
 use crate::domain::errors::{DomainError, DomainResult};
@@ -12,8 +12,12 @@ use crate::domain::ports::{
     AccountRepository, SettingsRepository, TransactionRepository, WalletRepository,
 };
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct DatabaseSnapshot {
+    /// Snapshot schema version. Must match `EXPECTED_SCHEMA_VERSION`
+    /// for the import to accept it. Bump this whenever fields are
+    /// added, removed or renamed in this struct.
+    pub schema_version: u32,
     pub exported_at: chrono::DateTime<Utc>,
     pub settings: Settings,
     /// Session BCV rate at export time. Not persisted; included only as
@@ -23,6 +27,11 @@ pub struct DatabaseSnapshot {
     pub accounts: Vec<Account>,
     pub transactions: Vec<Transaction>,
 }
+
+/// Current version of the [`DatabaseSnapshot`] shape. Used by both
+/// [`ExportService::snapshot`] (to stamp new exports) and
+/// [`ImportService`] (to reject incompatible backups).
+pub const EXPECTED_SCHEMA_VERSION: u32 = 2;
 
 pub struct ExportService {
     settings: Arc<dyn SettingsRepository>,
@@ -44,6 +53,7 @@ impl ExportService {
 
     pub fn snapshot(&self, current_rate: Option<BcvRate>) -> DomainResult<DatabaseSnapshot> {
         Ok(DatabaseSnapshot {
+            schema_version: EXPECTED_SCHEMA_VERSION,
             exported_at: Utc::now(),
             settings: self.settings.load()?,
             bcv_rate: current_rate,

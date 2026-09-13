@@ -14,7 +14,7 @@ use serde::Serialize;
 use serde_json::json;
 
 use crate::domain::errors::{DomainError, DomainResult};
-use crate::domain::ports::{SyncPort, SyncAccountPayload};
+use crate::domain::ports::{FullResyncPayload, SyncPort, SyncAccountPayload};
 
 /// HTTP timeout for every sync call. See spec §7 "Notas de implementación".
 const SYNC_TIMEOUT_SECONDS: u64 = 10;
@@ -121,6 +121,14 @@ impl SyncPort for GasSyncClient {
             "month": month,
         });
         self.dispatch(webhook_url, "mark_paid", &payload).await
+    }
+
+    async fn notify_full_resync(
+        &self,
+        webhook_url: &str,
+        payload: &FullResyncPayload,
+    ) -> DomainResult<()> {
+        self.dispatch(webhook_url, "full_resync", payload).await
     }
 
     async fn ping(&self, webhook_url: &str) -> DomainResult<()> {

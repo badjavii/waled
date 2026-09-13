@@ -164,6 +164,19 @@ pub trait SyncPort: Send + Sync {
         account_id: &str,
         month: &str,
     ) -> DomainResult<()>;
+
+    /// Replace GAS's entire sync state with the provided snapshot of
+    /// active periodic accounts. Called after an import or wipe to
+    /// bring GAS back in line with local state.
+    ///
+    /// The `is_paid` field per account tells GAS whether reminders
+    /// should be suspended for the current month (true) or emitted
+    /// per the daily digest rules (false).
+    async fn notify_full_resync(
+        &self,
+        webhook_url: &str,
+        payload: &FullResyncPayload,
+    ) -> DomainResult<()>;
 }
 
 /// Serializable snapshot of a periodic account, sent to GAS during
@@ -176,4 +189,25 @@ pub struct SyncAccountPayload {
     pub start_day: i64,
     pub due_day: i64,
     pub notify: bool,
+}
+
+/// Snapshot of all active periodic accounts sent to GAS during a
+/// full resync. GAS replaces its entire PropertiesService store with
+/// this payload.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FullResyncPayload {
+    pub accounts: Vec<FullResyncAccount>,
+}
+
+/// Per-account entry inside a [`FullResyncPayload`]. Slightly wider
+/// than [`SyncAccountPayload`] because it also carries the current
+/// month's paid state.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FullResyncAccount {
+    pub id: String,
+    pub concept: String,
+    pub start_day: i64,
+    pub due_day: i64,
+    pub notify: bool,
+    pub is_paid: bool,
 }
