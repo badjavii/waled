@@ -41,7 +41,7 @@ export function UpcomingPaymentsCard({
       ) : (
         <div className="flex flex-col gap-2.5 flex-1">
           {top.map((reminder) => (
-            <UpcomingRow key={reminder.account_id} reminder={reminder} />
+            <UpcomingRow key={`${reminder.account_id}-${reminder.due_date}`} reminder={reminder} />
           ))}
         </div>
       )}
