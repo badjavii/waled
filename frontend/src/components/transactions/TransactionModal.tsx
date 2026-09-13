@@ -199,18 +199,29 @@ export function TransactionModal({
               />
             </Field>
 
-            <Field label="Monto en bolívares">
+            <Field
+              label="Monto en bolívares"
+              hint="Solo dígitos y punto decimal. Máximo 12 dígitos."
+            >
               <div className="flex items-center bg-bg-main border border-[#2a3441] rounded-[10px] px-3 focus-within:border-brand transition-colors">
                 <span className="font-mono text-[15px] text-text-muted font-semibold">Bs</span>
                 <input
-                  inputMode="decimal"
                   value={form.ves_amount_input}
-                  onChange={(event) =>
-                    setForm({ ...form, ves_amount_input: event.target.value })
-                  }
+                  onChange={(event) => {
+                    const next = event.target.value;
+                    // Allow only digits and at most one decimal point.
+                    // Reject silently anything else so the field never
+                    // accepts garbage characters that would break the
+                    // parseFloat downstream.
+                    if (!/^\d*\.?\d*$/.test(next)) return;
+                    setForm({ ...form, ves_amount_input: next });
+                  }}
                   placeholder="0,00"
-                  className="flex-1 bg-transparent border-none py-2.5 px-2 text-base font-bold text-text-main font-mono outline-none"
+                  inputMode="decimal"
+                  maxLength={13}
+                  className="flex-1 min-w-0 bg-transparent border-none py-2.5 px-2 text-base font-bold text-text-main font-mono outline-none"
                   autoFocus
+                  required
                 />
               </div>
             </Field>
