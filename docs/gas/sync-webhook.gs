@@ -57,6 +57,8 @@ function doPost(e) {
         return handleArchive(payload);
       case "mark_paid":
         return handleMarkPaid(payload);
+      case "full_resync":
+        return handleFullResync(payload);
       default:
         return jsonResponse(400, {
           ok: false,
@@ -125,6 +127,36 @@ function handleMarkPaid(payload) {
   saveStore(store);
 
   return jsonResponse(200, { ok: true, account_id: payload.account_id });
+}
+
+/**
+ * Replace the entire sync store with the provided snapshot of accounts.
+ * Called after a Waled import or wipe to bring GAS back in line with
+ * local state.
+ */
+function handleFullResync(payload) {
+  if (!Array.isArray(payload.accounts)) {
+    return jsonResponse(400, {
+      ok: false,
+      error: "payload.accounts must be an array",
+    })
+  }
+
+  var store = {};
+  payload.accounts.forEach(function (account) {
+    if (!account.id) return;
+    store[account.id] = {
+      id: account.id,
+      concept: account.concept,
+      start_day: account.start_day,
+      due_day: account.due_day,
+      notify: account.notify,
+      is_paid: account.is_paid || false,
+    };
+  });
+
+  saveStore(store);
+  return jsonResponse(200, { ok: true, count: payload.accounts.length });
 }
 
 // ============================================================================

@@ -131,6 +131,20 @@ Check the execution log if nothing arrives — it will tell you if the email was
 
 ---
 
+## Full resync events
+
+Waled dispatches a `full_resync` event automatically after these operations, and the script replaces its entire `PropertiesService` store with the snapshot Waled sends:
+
+- **Importing a backup** (Configuración → Respaldos → Importar respaldo).
+- **Restoring the app** (Configuración → Zona de Peligro → Restablecer).
+- **Manual trigger** (Configuración → Webhooks → Sincronizar todo).
+
+This means you don't need to run `debugReset` manually before importing or restoring — the script rewrites the store in one atomic operation.
+
+The event is dispatched **best-effort**: if it fails because your network is down or GAS is unreachable, Waled shows a warning toast and the local state stays consistent regardless. You can retry the sync manually anytime from the Webhooks tab.
+
+---
+
 ## Debug utilities
 
 The script exposes four utility functions you can run manually from the editor:
@@ -168,9 +182,17 @@ Google Apps Script free accounts have a limit of **100 emails per day** through 
 
 **I want to re-sync all accounts from scratch**
 
-1. Run `debugReset` in the script editor to wipe the sync state.
+The easiest way is to trigger a manual full resync from Waled:
+
+1. Open Waled → Configuración → **Webhooks** tab.
+2. Click **Sincronizar todo con GAS**.
+
+This dispatches a `full_resync` event that replaces the entire sync store with your current active periodic accounts. No manual `debugReset` needed — the script handles the atomic replacement.
+
+If you prefer to wipe manually and rebuild organically:
+
+1. Run `debugReset` in the script editor.
 2. In Waled, the next time you create, update, or archive a periodic account, the change will re-sync to the script.
-3. Note: existing accounts won't re-sync automatically — they'll be added to the sync state only on their next mutation. A `full_resync` event that pushes all accounts at once is planned for Waled Entrega 5 (import/wipe workflows).
 
 ---
 
@@ -184,4 +206,6 @@ The state is scoped to the script owner — no one else can read it, not even Wa
 
 ## Reminder Webhook (v0.1.1)
 
-The reminders webhook script is from version v0.1.1 and continues to function without changes. Its operation is not covered in this documentation because it has undergone no modifications and requires no configuration; simply consult the [code](./remider-webhook.gs) within this directory and deploy it.
+The reminder webhook script comes from v0.1.1 and continues to work without changes. It's a lightweight endpoint that receives the "Enviar ahora" digests from Waled and forwards them as email — no state, no triggers, no configuration beyond the deployment.
+
+Deploy it the same way as the sync webhook (Phase 1 above), then paste its URL into Waled → Configuración → Webhooks → **Reminder Webhook (GAS)**. The source code is in [`reminder-webhook.gs`](./reminder-webhook.gs) alongside this README.
