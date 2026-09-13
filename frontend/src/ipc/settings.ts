@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { save, open } from "@tauri-apps/plugin-dialog";
-import type { Settings } from "./types";
+import type { Settings, ImportSummary } from "./types";
 
 export const getSettings = (): Promise<Settings> => invoke("get_settings");
 
@@ -61,3 +61,31 @@ export async function exportDatabaseToFile(
  */
 export const wipeDatabase = (userNameConfirmation: string): Promise<string> =>
   invoke("wipe_database", { userNameConfirmation });
+
+/**
+ * Ask the user to pick a Waled JSON backup file, then send its path
+ * to the backend for import. The backend validates the file, writes
+ * a pre-import backup of the current state, wipes the database, and
+ * inserts the imported rows.
+ *
+ * Returns the import summary, or null if the user cancelled the picker.
+ */
+export async function importDatabaseFromFile(): Promise<ImportSummary | null> {
+  const chosen = await open({
+    title: "Importar respaldo Waled",
+    directory: false,
+    multiple: false,
+    filters: [{ name: "JSON", extensions: ["json"] }],
+  });
+  if (!chosen || typeof chosen !== "string") return null;
+  return invoke("import_database", { source: chosen });
+}
+
+/**
+ * Push all current periodic accounts to the configured sync webhook,
+ * replacing GAS's stored state. Returns silently on success; throws
+ * NetworkRequired if the sync webhook is configured but unreachable.
+ * If the webhook URL is empty, resolves without doing anything.
+ */
+export const triggerFullResync = (): Promise<void> =>
+  invoke("trigger_full_resync");

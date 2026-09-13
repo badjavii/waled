@@ -90,3 +90,10 @@ export interface Reminder {
   paid_at: string | null;
   next_notification: NextNotification | null;
 }
+
+export interface ImportSummary {
+  backup_path: string;
+  imported_wallets: number;
+  imported_accounts: number;
+  imported_transactions: number;
+}
