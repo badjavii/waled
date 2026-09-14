@@ -1,7 +1,7 @@
 {
   "name": "waled",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Waled — Control de gastos personales en Venezuela. App de escritorio con conversión automática Bs/USD usando la tasa oficial del BCV.",
   "author": "badjavii",
   "license": "MIT",
